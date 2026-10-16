@@ -1,0 +1,89 @@
+/* Shared with apps/web/src/app.css in spirit — keep the two palettes identical.
+   Duplication is deliberate: web ships a PWA bundle, native a Capacitor one. */
+:root {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+  background: #0b0e14;
+  color: #e6e8ee;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 6rem;
+}
+
+h1 {
+  font-size: 1.35rem;
+}
+
+fieldset {
+  border: 1px solid #2a3040;
+  border-radius: 12px;
+  padding: 1rem;
+  margin: 0 0 1rem;
+}
+
+legend {
+  color: #8b93a7;
+  font-size: 0.85rem;
+  padding: 0 0.4rem;
+}
+
+input,
+button {
+  font: inherit;
+  border-radius: 8px;
+  border: 1px solid #2a3040;
+  background: #141927;
+  color: inherit;
+  padding: 0.55rem 0.85rem;
+}
+
+input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+button {
+  cursor: pointer;
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.secondary {
+  background: transparent;
+  border-color: #2a3040;
+  color: inherit;
+}
+
+ul {
+  padding-left: 1.1rem;
+}
+
+.muted {
+  color: #8b93a7;
+  font-size: 0.85rem;
+}
+
+.error {
+  color: #f87171;
+  font-size: 0.9rem;
+}
+
+code {
+  background: #141927;
+  border-radius: 6px;
+  padding: 0.1rem 0.35rem;
+}

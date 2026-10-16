@@ -1,0 +1,23 @@
+{
+  "name": "ble-id-exchange",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BLE metadata ID exchange: web client (server-relay), native wrapper (BLE listen + advertise), Fastify SQLite relay",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:server": "turbo run dev --filter=@ble-id/server",
+    "dev:web": "turbo run dev --filter=@ble-id/web",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.6.3"
+  },
+  "packageManager": "npm@11.12.1"
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@ble-id/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "typecheck": "npm run check",
+    "lint": "prettier --check ."
+  },
+  "dependencies": {
+    "@ble-id/shared-types": "*"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "^3.0.8",
+    "@sveltejs/kit": "^2.8.0",
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "prettier": "^3.3.3",
+    "svelte": "^5.15.0",
+    "svelte-check": "^4.1.1",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.3"
+  }
+}

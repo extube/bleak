@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+out/
+.turbo/
+.svelte-kit/
+*.tsbuildinfo
+*.db
+*.db-journal
+.env
+.env.*
+!.env.example
+.DS_Store
+npm-debug.log*
+coverage/
