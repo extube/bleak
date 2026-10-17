@@ -318,13 +318,10 @@ export class ClaimStore {
     roomId: string,
     userId: string,
     now = Date.now(),
-  ): "deleted" | "room-not-found" | "user-not-found" | "already-deleted" {
-    if (!this.roomById(roomId, true)) return "room-not-found";
-    const row = this.userById(userId, false);
-    if (!row) {
-      const tombstoned = this.userById(userId, true);
-      return tombstoned && tombstoned.room_id === roomId ? "already-deleted" : "user-not-found";
-    }
+  ): "deleted" | "user-not-found" | "already-deleted" {
+    const row = this.userById(userId, true);
+    if (!row || row.room_id !== roomId) return "user-not-found";
+    if (row.deleted_at !== null) return "already-deleted";
     this.db
       .prepare("UPDATE users SET deleted_at = ?, updated_at = ? WHERE user_id = ?")
       .run(now, now, userId);
