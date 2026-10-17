@@ -63,7 +63,7 @@ function validateUserText(
   return out;
 }
 
-function buildServer(cfg: Config, store: ClaimStore): FastifyInstance {
+export function buildServer(cfg: Config, store: ClaimStore): FastifyInstance {
   const app = Fastify({ logger: true });
 
   app.get("/health", async () => ({ status: "ok" }));
