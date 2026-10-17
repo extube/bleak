@@ -43,6 +43,49 @@ export type ClaimRejectionReason =
   | "code-already-claimed";
 
 // ---------------------------------------------------------------------------
+// User profile (server-managed record)
+// ---------------------------------------------------------------------------
+
+export interface UserProfile {
+  userId: UserId;
+  /** Display name, not unique — informational only. */
+  name: string;
+  /** Shown to other users. */
+  publicBio: string;
+  /** Only meaningful to the owner — never broadcast over relay. */
+  privateBio: string;
+  /** Free-form blob the owner's devices can use for sync payloads. */
+  meta: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Max lengths enforced by the server for user profile text fields. */
+export const USER_FIELD_LIMITS = {
+  name: 64,
+  publicBio: 128,
+  privateBio: 128,
+  meta: 256,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Rooms
+// ---------------------------------------------------------------------------
+
+export interface RoomProfile {
+  roomId: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Max lengths enforced by the server for room text fields. */
+export const ROOM_FIELD_LIMITS = {
+  name: 64,
+  roomId: 32,
+} as const;
+
+// ---------------------------------------------------------------------------
 // WebSocket envelope
 // ---------------------------------------------------------------------------
 

@@ -8,8 +8,38 @@ npm run dev        # tsx watch, port 8787 (PORT env to override)
 ```
 
 - `GET  /health` — liveness
-- `POST /api/exchange-code` — dev helper: `{ userId, exchangeCode }` → verified hash (real deployment: native app mints codes itself)
+- `POST /api/exchange-code` — dev helper: activates an exchange code for claims (real deployment: native app mints codes itself)
 - `WS   /` (same port) — relay protocol, types in `packages/shared-types` (`ClientMessage` in, `RelayEvent` out + `claim-result` acks)
+
+### Rooms API
+
+- `POST   /api/room` — create: `{ roomId?, name? }`; omit `roomId` to auto-generate — 201 room, 409 duplicate
+- `GET    /api/room/:roomId` — active room (404 if missing/soft-deleted)
+- `PATCH  /api/room/:roomId` — rename: `{ name }` (≤128 chars)
+- `DELETE /api/room/:roomId` — **soft delete**: tombstones the room; member users survive but every room-scoped route answers 410
+
+### Users API (room-scoped)
+
+All user routes live under their room and answer 404/410 if the room is missing/soft-deleted.
+
+- `POST   /api/room/:roomId/users` — create: `{ userId, name?, publicBio?, privateBio?, meta? }` → 201, 409 duplicate
+- `GET    /api/room/:roomId/users/:userId` — active profile in that room
+- `PATCH  /api/room/:roomId/users/:userId` — partial update of `name/publicBio/privateBio/meta`
+- `DELETE /api/room/:roomId/users/:userId` — **soft delete**: tombstones the row
+- `DELETE /api/room/:roomId/users/:userId/force` — **force delete**: wipes the row outright, no undo
+
+### Migration
+
+- `POST /api/room/:roomId/users/:userId/migrate` — copies the user into another
+  room: body `{ roomId, userId }` (target identity). All fields (bios, meta)
+  are kept; only the id changes. The source user is untouched — a copy, not a
+  move. Target room must exist, be active, and differ from the source; target
+  userId must be free.
+
+Users and rooms both carry a informational `name` (≤64 chars, not unique).
+
+Field limits (`USER_FIELD_LIMITS`, `ROOM_FIELD_LIMITS` in shared-types):
+`name` ≤ 64, `publicBio` ≤ 128, `privateBio` ≤ 128, `meta` ≤ 256, `roomId` ≤ 32.
 
 SQLite at `./claims.db` (WAL mode, `SQLITE_PATH` to relocate, has zero
 prerequisites). Claims expire (`CLAIM_TTL_MS`); the server never stores
