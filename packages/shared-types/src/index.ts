@@ -66,6 +66,23 @@ export const USER_FIELD_LIMITS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Rooms
+// ---------------------------------------------------------------------------
+
+export interface RoomProfile {
+  roomId: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Max lengths enforced by the server for room text fields. */
+export const ROOM_FIELD_LIMITS = {
+  name: 128,
+  roomId: 32,
+} as const;
+
+// ---------------------------------------------------------------------------
 // WebSocket envelope
 // ---------------------------------------------------------------------------
 

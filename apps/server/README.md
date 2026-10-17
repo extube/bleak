@@ -11,13 +11,30 @@ npm run dev        # tsx watch, port 8787 (PORT env to override)
 - `POST /api/exchange-code` — dev helper: activates an exchange code for claims (real deployment: native app mints codes itself)
 - `WS   /` (same port) — relay protocol, types in `packages/shared-types` (`ClientMessage` in, `RelayEvent` out + `claim-result` acks)
 
-### Users API
+### Rooms API
 
-- `POST   /api/users` — create: `{ userId, publicBio?, privateBio?, meta? }` → 201 profile, 409 if userId exists
-- `GET    /api/users/:userId` — active profile (404 if missing or soft-deleted)
-- `PATCH  /api/users/:userId` — partial update: any of `publicBio/privateBio/meta` (404 unknown, 410 soft-deleted)
-- `DELETE /api/users/:userId` — **soft delete**: tombstones the row (`deleted_at`), history preserved
-- `DELETE /api/users/:userId/force` — **force delete**: wipes the row outright, no undo
+- `POST   /api/room` — create: `{ roomId?, name? }`; omit `roomId` to auto-generate — 201 room, 409 duplicate
+- `GET    /api/room/:roomId` — active room (404 if missing/soft-deleted)
+- `PATCH  /api/room/:roomId` — rename: `{ name }` (≤128 chars)
+- `DELETE /api/room/:roomId` — **soft delete**: tombstones the room; member users survive but every room-scoped route answers 410
+
+### Users API (room-scoped)
+
+All user routes live under their room and answer 404/410 if the room is missing/soft-deleted.
+
+- `POST   /api/room/:roomId/users` — create: `{ userId, publicBio?, privateBio?, meta? }` → 201, 409 duplicate
+- `GET    /api/room/:roomId/users/:userId` — active profile in that room
+- `PATCH  /api/room/:roomId/users/:userId` — partial update of `publicBio/privateBio/meta`
+- `DELETE /api/room/:roomId/users/:userId` — **soft delete**: tombstones the row
+- `DELETE /api/room/:roomId/users/:userId/force` — **force delete**: wipes the row outright, no undo
+
+### Migration
+
+- `POST /api/room/:roomId/users/:userId/migrate` — copies the user into another
+  room: body `{ roomId, userId }` (target identity). All fields (bios, meta)
+  are kept; only the id changes. The source user is untouched — a copy, not a
+  move. Target room must exist, be active, and differ from the source; target
+  userId must be free.
 
 Field limits (`USER_FIELD_LIMITS` in shared-types): `publicBio` ≤ 128, `privateBio` ≤ 128, `meta` ≤ 256.
 
