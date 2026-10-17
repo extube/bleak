@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { CLAIM_TTL_MS } from "@ble-id/shared-types";
+import { CLAIM_TTL_MS, USER_FIELD_LIMITS } from "@ble-id/shared-types";
 
 export interface IdClaimRow {
   user_id: string;
@@ -8,6 +8,16 @@ export interface IdClaimRow {
   token_hash: string;
   created_at: number;
   expires_at: number;
+}
+
+export interface UserRow {
+  user_id: string;
+  public_bio: string;
+  private_bio: string;
+  meta: string;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
 }
 
 /**
@@ -35,6 +45,15 @@ export class ClaimStore {
         expires_at    INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_claims_code ON claims(exchange_code);
+      CREATE TABLE IF NOT EXISTS users (
+        user_id      TEXT PRIMARY KEY,
+        public_bio   TEXT NOT NULL DEFAULT '',
+        private_bio  TEXT NOT NULL DEFAULT '',
+        meta         TEXT NOT NULL DEFAULT '',
+        created_at   INTEGER NOT NULL,
+        updated_at   INTEGER NOT NULL,
+        deleted_at   INTEGER
+      );
     `);
     this.gc();
   }
@@ -136,6 +155,103 @@ export class ClaimStore {
       )
       .get(exchangeCode, Date.now()) as { user_id: string } | undefined;
     return row?.user_id ?? null;
+  }
+
+  // -- Users ---------------------------------------------------------------
+
+  createUser(input: {
+    userId: string;
+    publicBio?: string;
+    privateBio?: string;
+    meta?: string;
+    now?: number;
+  }): "created" | "exists" {
+    const now = input.now ?? Date.now();
+    const clamp = (text: string | undefined, max: number) =>
+      (text ?? "").slice(0, max);
+
+    try {
+      this.db
+        .prepare(
+          "INSERT INTO users (user_id, public_bio, private_bio, meta, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, NULL)",
+        )
+        .run(
+          input.userId,
+          clamp(input.publicBio, USER_FIELD_LIMITS.publicBio),
+          clamp(input.privateBio, USER_FIELD_LIMITS.privateBio),
+          clamp(input.meta, USER_FIELD_LIMITS.meta),
+          now,
+          now,
+        );
+      return "created";
+    } catch {
+      // SQLite PRIMARY KEY conflict — the caller decides the HTTP status.
+      return "exists";
+    }
+  }
+
+  updateUser(
+    userId: string,
+    patch: { publicBio?: string; privateBio?: string; meta?: string },
+    now = Date.now(),
+  ): "updated" | "not-found" | "already-deleted" {
+    const row = this.userById(userId, true);
+    if (!row) return "not-found";
+    if (row.deleted_at !== null) return "already-deleted";
+    if (patch.publicBio === undefined && patch.privateBio === undefined && patch.meta === undefined) {
+      return "updated";
+    }
+
+    if (patch.publicBio !== undefined)
+      this.setField(userId, "public_bio", patch.publicBio, USER_FIELD_LIMITS.publicBio, now);
+    if (patch.privateBio !== undefined)
+      this.setField(userId, "private_bio", patch.privateBio, USER_FIELD_LIMITS.privateBio, now);
+    if (patch.meta !== undefined)
+      this.setField(userId, "meta", patch.meta, USER_FIELD_LIMITS.meta, now);
+
+    return "updated";
+
+    this.db.prepare("UPDATE users SET updated_at = ? WHERE user_id = ?").run(now, userId);
+    return "updated";
+  }
+
+  /** Tombstones the row — profile is gone, history preserved. */
+  softDeleteUser(userId: string, now = Date.now()): "deleted" | "not-found" | "already-deleted" {
+    const row = this.userById(userId, false);
+    if (!row) {
+      return this.userById(userId, true) ? "already-deleted" : "not-found";
+    }
+    this.db
+      .prepare("UPDATE users SET deleted_at = ?, updated_at = ? WHERE user_id = ?")
+      .run(now, now, userId);
+    return "deleted";
+  }
+
+  /** Wipes the row outright — including any tombstone. No undo. */
+  forceDeleteUser(userId: string): "deleted" | "not-found" {
+    const result = this.db.prepare("DELETE FROM users WHERE user_id = ?").run(userId);
+    return result.changes > 0 ? "deleted" : "not-found";
+  }
+
+  userById(userId: string, includeDeleted = false): UserRow | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM users WHERE user_id = ?")
+      .get(userId) as UserRow | undefined;
+    if (!row) return undefined;
+    if (row.deleted_at !== null && !includeDeleted) return undefined;
+    return row;
+  }
+
+  private setField(
+    userId: string,
+    column: string,
+    value: string,
+    max: number,
+    now: number,
+  ): void {
+    this.db
+      .prepare(`UPDATE users SET ${column} = ?, updated_at = ? WHERE user_id = ?`)
+      .run(value.slice(0, max), now, userId);
   }
 
   private gc(): void {
