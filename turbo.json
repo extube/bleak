@@ -2,8 +2,16 @@
   "$schema": "https://turborepo.com/schema.json",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".svelte-kit/**", "build/**", "out/**", ".output/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".svelte-kit/**",
+        "build/**",
+        "out/**",
+        ".output/**"
+      ]
     },
     "typescheck": {},
     "typecheck": {},
@@ -11,6 +19,7 @@
     "dev": {
       "cache": false,
       "persistent": true
-    }
+    },
+    "test": {}
   }
 }
