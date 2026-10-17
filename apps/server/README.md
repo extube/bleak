@@ -22,9 +22,9 @@ npm run dev        # tsx watch, port 8787 (PORT env to override)
 
 All user routes live under their room and answer 404/410 if the room is missing/soft-deleted.
 
-- `POST   /api/room/:roomId/users` — create: `{ userId, publicBio?, privateBio?, meta? }` → 201, 409 duplicate
+- `POST   /api/room/:roomId/users` — create: `{ userId, name?, publicBio?, privateBio?, meta? }` → 201, 409 duplicate
 - `GET    /api/room/:roomId/users/:userId` — active profile in that room
-- `PATCH  /api/room/:roomId/users/:userId` — partial update of `publicBio/privateBio/meta`
+- `PATCH  /api/room/:roomId/users/:userId` — partial update of `name/publicBio/privateBio/meta`
 - `DELETE /api/room/:roomId/users/:userId` — **soft delete**: tombstones the row
 - `DELETE /api/room/:roomId/users/:userId/force` — **force delete**: wipes the row outright, no undo
 
@@ -36,7 +36,10 @@ All user routes live under their room and answer 404/410 if the room is missing/
   move. Target room must exist, be active, and differ from the source; target
   userId must be free.
 
-Field limits (`USER_FIELD_LIMITS` in shared-types): `publicBio` ≤ 128, `privateBio` ≤ 128, `meta` ≤ 256.
+Users and rooms both carry a informational `name` (≤64 chars, not unique).
+
+Field limits (`USER_FIELD_LIMITS`, `ROOM_FIELD_LIMITS` in shared-types):
+`name` ≤ 64, `publicBio` ≤ 128, `privateBio` ≤ 128, `meta` ≤ 256, `roomId` ≤ 32.
 
 SQLite at `./claims.db` (WAL mode, `SQLITE_PATH` to relocate, has zero
 prerequisites). Claims expire (`CLAIM_TTL_MS`); the server never stores

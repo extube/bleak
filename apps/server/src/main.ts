@@ -18,6 +18,7 @@ interface Config {
 function toProfile(row: UserRow): UserProfile {
   return {
     userId: row.user_id,
+    name: row.name,
     publicBio: row.public_bio,
     privateBio: row.private_bio,
     meta: row.meta,
@@ -44,8 +45,8 @@ interface ReplyError {
 function validateUserText(
   patch: Record<string, unknown>,
   reply: FastifyReply,
-): { publicBio?: string; privateBio?: string; meta?: string } | null {
-  const out: { publicBio?: string; privateBio?: string; meta?: string } = {};
+): { name?: string; publicBio?: string; privateBio?: string; meta?: string } | null {
+  const out: { name?: string; publicBio?: string; privateBio?: string; meta?: string } = {};
   for (const [key, limit] of Object.entries(USER_FIELD_LIMITS)) {
     const value = patch[key];
     if (value === undefined) continue;
@@ -135,7 +136,7 @@ function buildServer(cfg: Config, store: ClaimStore): FastifyInstance {
     return null;
   };
 
-  app.post<{ Params: { roomId: string }; Body: { userId?: string; publicBio?: string; privateBio?: string; meta?: string } }>(
+  app.post<{ Params: { roomId: string }; Body: { userId?: string; name?: string; publicBio?: string; privateBio?: string; meta?: string } }>(
     "/api/room/:roomId/users",
     async (request, reply) => {
       const roomErr = requireRoom(request.params.roomId);
@@ -170,7 +171,7 @@ function buildServer(cfg: Config, store: ClaimStore): FastifyInstance {
     },
   );
 
-  app.patch<{ Params: { roomId: string; userId: string }; Body: { publicBio?: string; privateBio?: string; meta?: string } }>(
+  app.patch<{ Params: { roomId: string; userId: string }; Body: { name?: string; publicBio?: string; privateBio?: string; meta?: string } }>(
     "/api/room/:roomId/users/:userId",
     async (request, reply) => {
       const roomErr = requireRoom(request.params.roomId);

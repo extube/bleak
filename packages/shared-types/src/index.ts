@@ -48,6 +48,8 @@ export type ClaimRejectionReason =
 
 export interface UserProfile {
   userId: UserId;
+  /** Display name, not unique — informational only. */
+  name: string;
   /** Shown to other users. */
   publicBio: string;
   /** Only meaningful to the owner — never broadcast over relay. */
@@ -60,6 +62,7 @@ export interface UserProfile {
 
 /** Max lengths enforced by the server for user profile text fields. */
 export const USER_FIELD_LIMITS = {
+  name: 64,
   publicBio: 128,
   privateBio: 128,
   meta: 256,
@@ -78,7 +81,7 @@ export interface RoomProfile {
 
 /** Max lengths enforced by the server for room text fields. */
 export const ROOM_FIELD_LIMITS = {
-  name: 128,
+  name: 64,
   roomId: 32,
 } as const;
 

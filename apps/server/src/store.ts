@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { CLAIM_TTL_MS, USER_FIELD_LIMITS } from "@ble-id/shared-types";
+import { CLAIM_TTL_MS, ROOM_FIELD_LIMITS, USER_FIELD_LIMITS } from "@ble-id/shared-types";
 
 export interface IdClaimRow {
   user_id: string;
@@ -13,6 +13,7 @@ export interface IdClaimRow {
 export interface UserRow {
   user_id: string;
   room_id: string | null;
+  name: string;
   public_bio: string;
   private_bio: string;
   meta: string;
@@ -67,6 +68,7 @@ export class ClaimStore {
       CREATE TABLE IF NOT EXISTS users (
         user_id      TEXT PRIMARY KEY,
         room_id      TEXT,
+        name         TEXT NOT NULL DEFAULT '',
         public_bio   TEXT NOT NULL DEFAULT '',
         private_bio  TEXT NOT NULL DEFAULT '',
         meta         TEXT NOT NULL DEFAULT '',
@@ -87,6 +89,9 @@ export class ClaimStore {
     const usersCols = this.db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
     if (!usersCols.some((col) => col.name === "room_id")) {
       this.db.exec("ALTER TABLE users ADD COLUMN room_id TEXT");
+    }
+    if (!usersCols.some((col) => col.name === "name")) {
+      this.db.exec("ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT ''");
     }
     this.gc();
   }
@@ -202,7 +207,7 @@ export class ClaimStore {
         .prepare(
           "INSERT INTO rooms (room_id, name, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, NULL)",
         )
-        .run(roomId, (input.name ?? "").slice(0, 128), now, now);
+        .run(roomId, (input.name ?? "").slice(0, ROOM_FIELD_LIMITS.name), now, now);
       return { roomId };
     } catch {
       return "exists";
@@ -216,7 +221,7 @@ export class ClaimStore {
     if (patch.name !== undefined) {
       this.db
         .prepare("UPDATE rooms SET name = ?, updated_at = ? WHERE room_id = ?")
-        .run(patch.name.slice(0, 128), now, roomId);
+        .run(patch.name.slice(0, ROOM_FIELD_LIMITS.name), now, roomId);
     }
     return "updated";
   }
@@ -245,6 +250,7 @@ export class ClaimStore {
   createUser(input: {
     roomId: string;
     userId: string;
+    name?: string;
     publicBio?: string;
     privateBio?: string;
     meta?: string;
@@ -258,11 +264,12 @@ export class ClaimStore {
     try {
       this.db
         .prepare(
-          "INSERT INTO users (user_id, room_id, public_bio, private_bio, meta, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+          "INSERT INTO users (user_id, room_id, name, public_bio, private_bio, meta, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)",
         )
         .run(
           input.userId,
           input.roomId,
+          clamp(input.name, USER_FIELD_LIMITS.name),
           clamp(input.publicBio, USER_FIELD_LIMITS.publicBio),
           clamp(input.privateBio, USER_FIELD_LIMITS.privateBio),
           clamp(input.meta, USER_FIELD_LIMITS.meta),
@@ -279,16 +286,23 @@ export class ClaimStore {
   updateUser(
     roomId: string,
     userId: string,
-    patch: { publicBio?: string; privateBio?: string; meta?: string },
+    patch: { name?: string; publicBio?: string; privateBio?: string; meta?: string },
     now = Date.now(),
   ): "updated" | "room-not-found" | "user-not-found" | "already-deleted" {
     const row = this.userById(userId, true);
     if (!row || row.room_id !== roomId) return "user-not-found";
     if (row.deleted_at !== null) return "already-deleted";
-    if (patch.publicBio === undefined && patch.privateBio === undefined && patch.meta === undefined) {
+    if (
+      patch.name === undefined &&
+      patch.publicBio === undefined &&
+      patch.privateBio === undefined &&
+      patch.meta === undefined
+    ) {
       return "updated";
     }
 
+    if (patch.name !== undefined)
+      this.setField(userId, "name", patch.name, USER_FIELD_LIMITS.name, now);
     if (patch.publicBio !== undefined)
       this.setField(userId, "public_bio", patch.publicBio, USER_FIELD_LIMITS.publicBio, now);
     if (patch.privateBio !== undefined)
@@ -352,9 +366,9 @@ export class ClaimStore {
     try {
       this.db
         .prepare(
-          "INSERT INTO users (user_id, room_id, public_bio, private_bio, meta, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+          "INSERT INTO users (user_id, room_id, name, public_bio, private_bio, meta, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)",
         )
-        .run(to.userId, to.roomId, source.public_bio, source.private_bio, source.meta, now, now);
+        .run(to.userId, to.roomId, source.name, source.public_bio, source.private_bio, source.meta, now, now);
     } catch {
       return "target-id-exists";
     }
