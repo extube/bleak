@@ -1,0 +1,25 @@
+{
+  "name": "@ble-id/mock-advertiser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mock BLE peripheral CLI (Linux/BlueZ) advertising random short IDs for manual testing",
+  "bin": {
+    "ble-mock-advertiser": "./bin/ble-mock-advertiser.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@ble-id/shared-types": "*",
+    "dbus-next": "^0.10.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
