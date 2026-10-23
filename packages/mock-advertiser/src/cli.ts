@@ -3,7 +3,12 @@ import {
   WRAPPER_SERVICE_UUID,
   type UserId,
 } from "@ble-id/shared-types";
-import { ID_CHARSET, isValidMockId, randomId } from "./id.js";
+import {
+  HASH_ID_LENGTH,
+  ID_CHARSET,
+  isValidMockId,
+  randomHashId,
+} from "./id.js";
 import { MockDevice } from "./session.js";
 import { BluezAdvertiser } from "./bluez.js";
 import { DryRunTarget } from "./dryrun.js";
@@ -69,7 +74,7 @@ export function parseArgs(argv: readonly string[]): CliArgs {
         const raw = value().trim().toUpperCase();
         if (!isValidMockId(raw)) {
           throw new CliError(
-            `--id expects a ${USER_ID_LENGTH}-character ID from charset [${ID_CHARSET}], got "${raw}"`,
+            `--id expects a ${HASH_ID_LENGTH}-character hex sha256 prefix or a ${USER_ID_LENGTH}-character ID from charset [${ID_CHARSET}], got "${raw}"`,
           );
         }
         args.fixedId = raw;
@@ -113,7 +118,10 @@ export function parseArgs(argv: readonly string[]): CliArgs {
   return args;
 }
 
-const USAGE = `ble-mock-advertiser — advertise random short IDs (e.g. AB3F2K) over BLE on desktop Linux for testing.
+const USAGE = `ble-mock-advertiser — advertise sha256 ID prefixes (e.g. 1A2B3C4D5E) over BLE on desktop Linux for testing.
+
+Each rotation generates fresh random bytes and advertises the first
+${HASH_ID_LENGTH} hex characters of their sha256 digest.
 
 Usage: ble-mock-advertiser [options]
 
@@ -228,7 +236,7 @@ async function main(): Promise<number> {
   const device = new MockDevice({
     target,
     intervalMs: args.intervalMs,
-    idGen: args.fixedId ? () => args.fixedId as UserId : randomId,
+    idGen: args.fixedId ? () => args.fixedId as UserId : randomHashId,
   });
   process.on("SIGINT", () => device.abort());
   process.on("SIGTERM", () => device.abort());

@@ -46,6 +46,16 @@ test("scan response carries the complete local name", () => {
   assert.equal(payloads.localName, `${DEFAULT_NAME_PREFIX} AB3F2K`);
 });
 
+test("sha256 hex prefix id fills the slot without overflowing", () => {
+  const payloads = buildAdvertisementPayloads("1A2B3C4D5E");
+  assert.equal(payloads.advertisementData.length, 31);
+  assert.equal(
+    payloads.advertisementData.subarray(21).toString("ascii"),
+    "1A2B3C4D5E",
+  );
+  assert.equal(payloads.localName, `${DEFAULT_NAME_PREFIX} 1A2B3C4D5E`);
+});
+
 test("long prefix is truncated, never overflowing 31 bytes", () => {
   const payloads = buildAdvertisementPayloads("AB3F2K", "X".repeat(64));
   assert.ok(payloads.scanResponse.length <= 31);
