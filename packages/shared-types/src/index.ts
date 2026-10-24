@@ -119,6 +119,41 @@ export const WRAPPER_CLAIM_CHAR_UUID =
 export const WRAPPER_EXCHANGE_CHAR_UUID =
   "B1E4D1A0-0F1E-46BA-8E29-9A4C1F7E0003";
 
+// ---------------------------------------------------------------------------
+// Beacon payload (Flow A wire format)
+//
+// One legacy advertisement carries exactly 20 payload bytes:
+//   16 bytes user id (uppercase hex chars) + 4 bytes app id.
+// The app id distinguishes the original advertiser from a re-translator
+// repeating the same user id. A 16-bit service UUID alias is used so the
+// 20-byte payload fits the legacy packet (31 - 3 flags - 2 AD header - 2 UUID
+// = 24 free bytes; 20 used).
+// ---------------------------------------------------------------------------
+
+/** User-id part of a beacon, in bytes. */
+export const BEACON_USER_ID_BYTES = 16;
+
+/** App-id part of a beacon (original vs retranslated marker), in bytes. */
+export const BEACON_APP_ID_BYTES = 4;
+
+/** Total beacon payload size advertised in service data. */
+export const BEACON_TOTAL_BYTES = BEACON_USER_ID_BYTES + BEACON_APP_ID_BYTES;
+
+/**
+ * 16-bit UUID the beacon is advertised under (vendor/test range 0xFFE0), so
+ * the 20-byte user+app payload fits the legacy 31-byte packet.
+ */
+export const BEACON_SERVICE_UUID16 = 0xffe0;
+
+/** Canonical 128-bit string form of BEACON_SERVICE_UUID16. */
+export const BEACON_SERVICE_UUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
+
+/** App id stamped by the device that generated the user id. */
+export const APP_ID_ORIGINAL = Buffer.from([0xb1, 0xe4, 0xd1, 0xa0]);
+
+/** App id stamped by a re-translator repeating another device's beacon. */
+export const APP_ID_RETRANSLATED = Buffer.from([0xb1, 0xe4, 0xd1, 0xa1]);
+
 /** How long a claim stays open before expiry (ms). */
 export const CLAIM_TTL_MS = 10 * 60 * 1000;
 
