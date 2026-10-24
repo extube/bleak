@@ -1,5 +1,7 @@
 import dbus, { Message, Variant, interface as dbusIface } from "dbus-next";
 import {
+  APP_ID_ORIGINAL,
+  BEACON_SERVICE_UUID,
   WRAPPER_CLAIM_CHAR_UUID,
   WRAPPER_EXCHANGE_CHAR_UUID,
   WRAPPER_SERVICE_UUID,
@@ -7,6 +9,7 @@ import {
 } from "@ble-id/shared-types";
 import {
   buildAdvertisementPayloads,
+  concatBeaconPayload,
   type AdvertisementPayloads,
 } from "./payload.js";
 import type { AdvertiseMode, AdvertiseTarget, TargetHooks } from "./types.js";
@@ -26,7 +29,8 @@ const CLAIM_PATH = `${SERVICE_PATH}/claim`;
 const ADV_PATH_BASE = `${APP_PATH}/adv`;
 
 interface DeviceState {
-  id: string;
+  userId: string;
+  appId: Buffer;
   prefix: string;
 }
 
@@ -48,15 +52,15 @@ class MockLeAdvertisement extends dbusIface.Interface {
 
   get ServiceData(): Record<string, Variant> {
     return {
-      [WRAPPER_SERVICE_UUID]: new Variant(
+      [BEACON_SERVICE_UUID]: new Variant(
         "ay",
-        Buffer.from(this.state.id, "ascii"),
+        concatBeaconPayload(this.state.userId, this.state.appId),
       ),
     };
   }
 
   get LocalName(): string {
-    return `${this.state.prefix} ${this.state.id}`.trim();
+    return `${this.state.prefix} ${this.state.userId}`.trim();
   }
 
   get Includes(): string[] {
@@ -128,7 +132,7 @@ class MockExchangeCharacteristic extends dbusIface.Interface {
   }
 
   ReadValue(_options: Record<string, unknown>): Buffer {
-    return Buffer.from(this.state.id, "ascii");
+    return Buffer.from(this.state.userId, "ascii");
   }
 }
 
@@ -260,6 +264,7 @@ interface RegisteredAdvertisement {
 
 export interface BluezAdvertiserOptions {
   prefix: string;
+  appId: Buffer;
   hooks: TargetHooks;
 }
 
@@ -279,16 +284,18 @@ export class BluezAdvertiser implements AdvertiseTarget {
     bus: dbus.MessageBus,
     adapterProxy: dbus.ProxyObject,
     hooks: TargetHooks,
+    appId: Buffer,
     prefix: string,
   ) {
     this.bus = bus;
     this.adapterProxy = adapterProxy;
     this.hooks = hooks;
-    this.state = { id: "", prefix };
+    this.state = { userId: "", appId, prefix };
   }
 
   static async connect(
     hooks: TargetHooks,
+    appId: Buffer = APP_ID_ORIGINAL,
     prefix: string,
   ): Promise<BluezAdvertiser> {
     const bus = dbus.systemBus();
@@ -356,17 +363,17 @@ export class BluezAdvertiser implements AdvertiseTarget {
       );
     }
 
-    return new BluezAdvertiser(bus, adapterProxy, hooks, prefix);
+    return new BluezAdvertiser(bus, adapterProxy, hooks, appId, prefix);
   }
 
   async start(id: UserId): Promise<void> {
-    this.state.id = id;
+    this.state.userId = id;
     await this.registerGattApplication();
     await this.registerAdvertisement();
   }
 
   async rotate(id: UserId): Promise<void> {
-    this.state.id = id;
+    this.state.userId = id;
     await this.registerAdvertisement();
   }
 
@@ -416,7 +423,10 @@ export class BluezAdvertiser implements AdvertiseTarget {
   }
 
   private async registerAdvertisement(): Promise<void> {
-    const payloads = buildAdvertisementPayloads(this.state.id);
+    const payloads = buildAdvertisementPayloads(
+      this.state.userId,
+      this.state.appId,
+    );
     const path = `${ADV_PATH_BASE}/${++this.advCounter}`;
     const instance = new MockLeAdvertisement(this.state);
     this.bus.export(path, instance);
@@ -461,7 +471,7 @@ export class BluezAdvertiser implements AdvertiseTarget {
       ).catch(() => undefined);
     }
     this.hooks.onAdvert?.({
-      id: this.state.id,
+      id: this.state.userId,
       localName: payloads.localName,
       serviceUuid: WRAPPER_SERVICE_UUID,
       advHex: payloads.advertisementData.toString("hex"),
