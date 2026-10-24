@@ -1,14 +1,12 @@
 import {
-  USER_ID_LENGTH,
+  APP_ID_ORIGINAL,
+  BEACON_SERVICE_UUID,
+  BEACON_SERVICE_UUID16,
+  BEACON_USER_ID_BYTES,
   WRAPPER_SERVICE_UUID,
   type UserId,
 } from "@ble-id/shared-types";
-import {
-  HASH_ID_LENGTH,
-  ID_CHARSET,
-  isValidMockId,
-  randomHashId,
-} from "./id.js";
+import { isValidBeaconUserId, randomBeaconUserId } from "./id.js";
 import { MockDevice } from "./session.js";
 import { BluezAdvertiser } from "./bluez.js";
 import { DryRunTarget } from "./dryrun.js";
@@ -72,9 +70,9 @@ export function parseArgs(argv: readonly string[]): CliArgs {
       }
       case "--id": {
         const raw = value().trim().toUpperCase();
-        if (!isValidMockId(raw)) {
+        if (!isValidBeaconUserId(raw)) {
           throw new CliError(
-            `--id expects a ${HASH_ID_LENGTH}-character hex sha256 prefix or a ${USER_ID_LENGTH}-character ID from charset [${ID_CHARSET}], got "${raw}"`,
+            `--id expects a ${BEACON_USER_ID_BYTES}-character hex sha256 prefix, got "${raw}"`,
           );
         }
         args.fixedId = raw;
@@ -118,16 +116,17 @@ export function parseArgs(argv: readonly string[]): CliArgs {
   return args;
 }
 
-const USAGE = `ble-mock-advertiser — advertise sha256 ID prefixes (e.g. 1A2B3C4D5E) over BLE on desktop Linux for testing.
+const USAGE = `ble-mock-advertiser — advertise beacon ids over BLE on desktop Linux for testing.
 
-Each rotation generates fresh random bytes and advertises the first
-${HASH_ID_LENGTH} hex characters of their sha256 digest.
+Each beacon advertises 20 bytes of service data (UUID 0xFFE0):
+  16 hex chars of user id (sha256 prefix over fresh random bytes)
++ 4 bytes of app id ("b1e4d1a0" = original, "b1e4d1a1" = retranslated).
 
 Usage: ble-mock-advertiser [options]
 
 Options:
   --interval <ms>   rotate the ID every <ms>              (default 5000)
-  --id <ID>         advertise a fixed ID, no rotation
+  --id <ID>         advertise a fixed 16-char hex user id, no rotation
   --prefix <name>   local-name prefix                     (default "BLE-ID")
   --duration <ms>   exit automatically after <ms>
   --once            emit one ID, then exit
@@ -207,7 +206,11 @@ async function main(): Promise<number> {
     target = new DryRunTarget(hooks);
   } else {
     try {
-      target = await BluezAdvertiser.connect(hooks, args.prefix);
+      target = await BluezAdvertiser.connect(
+        hooks,
+        APP_ID_ORIGINAL,
+        args.prefix,
+      );
       mode = "bluez";
     } catch (err) {
       hooks.onNote?.((err as Error).message);
@@ -219,7 +222,7 @@ async function main(): Promise<number> {
 
   if (!args.json) {
     console.log(
-      `[${ts()}] ready   mode=${mode}  interval=${args.intervalMs}ms  service=${WRAPPER_SERVICE_UUID}`,
+      `[${ts()}] ready   mode=${mode}  interval=${args.intervalMs}ms  service=0xFFE0 (${WRAPPER_SERVICE_UUID} legacy)`,
     );
   } else {
     console.log(
@@ -228,7 +231,8 @@ async function main(): Promise<number> {
         event: "ready",
         mode,
         intervalMs: args.intervalMs,
-        service: WRAPPER_SERVICE_UUID,
+        service: BEACON_SERVICE_UUID,
+        serviceShort: BEACON_SERVICE_UUID16,
       }),
     );
   }
@@ -236,7 +240,7 @@ async function main(): Promise<number> {
   const device = new MockDevice({
     target,
     intervalMs: args.intervalMs,
-    idGen: args.fixedId ? () => args.fixedId as UserId : randomHashId,
+    idGen: args.fixedId ? () => args.fixedId as UserId : randomBeaconUserId,
   });
   process.on("SIGINT", () => device.abort());
   process.on("SIGTERM", () => device.abort());

@@ -1,4 +1,4 @@
-import { WRAPPER_SERVICE_UUID } from "@ble-id/shared-types";
+import { BEACON_SERVICE_UUID } from "@ble-id/shared-types";
 import { buildAdvertisementPayloads } from "./payload.js";
 import type { AdvertiseTarget, TargetHooks } from "./types.js";
 
@@ -33,7 +33,7 @@ export class DryRunTarget implements AdvertiseTarget {
     this.hooks.onAdvert?.({
       id,
       localName: payloads.localName,
-      serviceUuid: WRAPPER_SERVICE_UUID,
+      serviceUuid: BEACON_SERVICE_UUID,
       advHex: payloads.advertisementData.toString("hex"),
       scanHex: payloads.scanResponse.toString("hex"),
     });

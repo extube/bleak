@@ -1,30 +1,38 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { USER_ID_LENGTH } from "@ble-id/shared-types";
+import { BEACON_USER_ID_BYTES, USER_ID_LENGTH } from "@ble-id/shared-types";
 import {
   ID_CHARSET,
-  HASH_ID_LENGTH,
-  randomHashId,
+  randomBeaconUserId,
   randomId,
+  isValidBeaconUserId,
   isValidMockId,
 } from "../src/id.js";
 
-test("randomHashId is a sha256 hex prefix of the fixed length", () => {
+test("randomBeaconUserId is a 16-char hex sha256 prefix", () => {
   for (let i = 0; i < 200; i++) {
-    const id = randomHashId();
-    assert.equal(id.length, HASH_ID_LENGTH);
+    const id = randomBeaconUserId();
+    assert.equal(id.length, BEACON_USER_ID_BYTES);
     assert.match(id, /^[0-9A-F]+$/);
   }
 });
 
-test("randomHashId is deterministic per seed and non-deterministic across seeds", () => {
+test("randomBeaconUserId is deterministic per seed and non-deterministic on rotation", () => {
   const seed = Buffer.alloc(16, 7);
-  assert.equal(randomHashId(seed), randomHashId(seed));
-  const ids = new Set(Array.from({ length: 50 }, () => randomHashId()));
+  assert.equal(randomBeaconUserId(seed), randomBeaconUserId(seed));
+  const ids = new Set(Array.from({ length: 50 }, () => randomBeaconUserId()));
   assert.ok(ids.size > 1);
 });
 
-test("randomId produces USER_ID_LENGTH ids from the charset", () => {
+test("isValidBeaconUserId accepts hex users and rejects garbage", () => {
+  assert.ok(isValidBeaconUserId(randomBeaconUserId()));
+  assert.ok(isValidBeaconUserId("0123456789abcdef"));
+  assert.equal(isValidBeaconUserId("0123456789ABCDE"), false); // 15
+  assert.equal(isValidBeaconUserId("0123456789ABCDG0"), false); // not hex
+  assert.equal(isValidBeaconUserId(""), false);
+});
+
+test("randomId still produces USER_ID_LENGTH ids from the charset", () => {
   for (let i = 0; i < 200; i++) {
     const id = randomId();
     assert.equal(id.length, USER_ID_LENGTH);
@@ -39,19 +47,11 @@ test("randomId is not deterministic", () => {
   assert.ok(ids.size > 1);
 });
 
-test("isValidMockId accepts generated ids and rejects garbage", () => {
-  assert.ok(isValidMockId(randomId()));
+test("isValidMockId accepts beacon users and legacy charset ids", () => {
+  assert.ok(isValidMockId(randomBeaconUserId()));
   assert.ok(isValidMockId("AB3F2K"));
   assert.equal(isValidMockId("AB3F2"), false);
   assert.equal(isValidMockId("AB3F2KX"), false);
   assert.equal(isValidMockId("AB3F2O"), false); // O excluded from charset
   assert.equal(isValidMockId(""), false);
-});
-
-test("isValidMockId accepts sha256 hex prefixes", () => {
-  assert.ok(isValidMockId(randomHashId()));
-  assert.ok(isValidMockId("1A2B3C4D5E"));
-  assert.ok(isValidMockId("1a2b3c4d5e"));
-  assert.equal(isValidMockId("1A2B3C4D5EF"), false); // 11 chars
-  assert.equal(isValidMockId("1A2B3C4DG"), false); // not hex
 });

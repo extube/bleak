@@ -1,68 +1,83 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { WRAPPER_SERVICE_UUID } from "@ble-id/shared-types";
+import {
+  APP_ID_ORIGINAL,
+  APP_ID_RETRANSLATED,
+  BEACON_APP_ID_BYTES,
+  BEACON_USER_ID_BYTES,
+} from "@ble-id/shared-types";
 import {
   buildAdvertisementPayloads,
+  concatBeaconPayload,
+  parseBeaconPayload,
   DEFAULT_NAME_PREFIX,
 } from "../src/payload.js";
 
-test("default payload fits the 31-byte legacy BLE limit", () => {
-  const payloads = buildAdvertisementPayloads("AB3F2K");
+const USER_ID = "0123456789ABCDEF";
+
+test("ad fits the 31-byte legacy BLE limit", () => {
+  const payloads = buildAdvertisementPayloads(USER_ID);
   assert.ok(payloads.advertisementData.length <= 31);
   assert.ok(payloads.scanResponse.length <= 31);
 });
 
-test("advertisement data embeds flags + service data with UUID and ASCII id", () => {
-  const payloads = buildAdvertisementPayloads("AB3F2K");
+test("advertisement embeds flags + 0xFFE0 service data with 20-byte beacon", () => {
+  const payloads = buildAdvertisementPayloads(USER_ID, APP_ID_ORIGINAL);
 
   assert.deepEqual(
     payloads.advertisementData.subarray(0, 3),
     Buffer.from([0x02, 0x01, 0x06]),
   );
+  assert.equal(payloads.advertisementData[4], 0x16); // service data AD type
 
-  const serviceDataLen = payloads.advertisementData[3];
   const serviceData = payloads.advertisementData.subarray(3);
-  assert.equal(serviceData.length, 1 + serviceDataLen);
-  assert.equal(serviceData[1], 0x16);
+  assert.equal(serviceData.length, 1 + serviceData[0]);
+  assert.deepEqual(serviceData.subarray(2, 4), Buffer.from([0xff, 0xe0]));
 
-  const uuidBytes = serviceData.subarray(2, 18);
-  const expectedUuid = Buffer.from(
-    WRAPPER_SERVICE_UUID.replace(/-/g, ""),
-    "hex",
-  ).reverse();
-  assert.deepEqual(uuidBytes, expectedUuid);
-
-  assert.equal(serviceData.subarray(18).toString("ascii"), "AB3F2K");
+  const beacon = serviceData.subarray(4);
+  assert.equal(beacon.length, BEACON_USER_ID_BYTES + BEACON_APP_ID_BYTES);
+  assert.equal(beacon.subarray(0, 16).toString("ascii"), USER_ID);
+  assert.deepEqual(beacon.subarray(16), APP_ID_ORIGINAL);
 });
 
-test("scan response carries the complete local name", () => {
-  const payloads = buildAdvertisementPayloads("AB3F2K");
+test("re-translated app id differs and round-trips through parseBeaconPayload", () => {
+  const original = buildAdvertisementPayloads(USER_ID, APP_ID_ORIGINAL);
+  const relaid = buildAdvertisementPayloads(USER_ID, APP_ID_RETRANSLATED);
+  assert.ok(
+    !original.advertisementData.subarray(25).equals(relaid.advertisementData.subarray(25)),
+  );
+
+  for (const appId of [APP_ID_ORIGINAL, APP_ID_RETRANSLATED]) {
+    const raw = concatBeaconPayload(USER_ID, appId);
+    assert.deepEqual(parseBeaconPayload(raw), { userId: USER_ID, appId });
+  }
+});
+
+test("scan response carries the full local name", () => {
+  const payloads = buildAdvertisementPayloads(USER_ID);
   assert.equal(payloads.scanResponse[0], payloads.scanResponse.length - 1);
   assert.equal(payloads.scanResponse[1], 0x09);
   assert.equal(
     payloads.scanResponse.subarray(2).toString("ascii"),
-    `${DEFAULT_NAME_PREFIX} AB3F2K`,
+    `${DEFAULT_NAME_PREFIX} ${USER_ID}`,
   );
-  assert.equal(payloads.localName, `${DEFAULT_NAME_PREFIX} AB3F2K`);
-});
-
-test("sha256 hex prefix id fills the slot without overflowing", () => {
-  const payloads = buildAdvertisementPayloads("1A2B3C4D5E");
-  assert.equal(payloads.advertisementData.length, 31);
-  assert.equal(
-    payloads.advertisementData.subarray(21).toString("ascii"),
-    "1A2B3C4D5E",
-  );
-  assert.equal(payloads.localName, `${DEFAULT_NAME_PREFIX} 1A2B3C4D5E`);
+  assert.equal(payloads.localName, `${DEFAULT_NAME_PREFIX} ${USER_ID}`);
 });
 
 test("long prefix is truncated, never overflowing 31 bytes", () => {
-  const payloads = buildAdvertisementPayloads("AB3F2K", "X".repeat(64));
+  const payloads = buildAdvertisementPayloads(USER_ID, APP_ID_ORIGINAL, "X".repeat(64));
   assert.ok(payloads.scanResponse.length <= 31);
-  assert.equal(payloads.localName.length, 29);
+  assert.ok(payloads.localName.length <= 29);
 });
 
-test("empty prefix trims to just the id", () => {
-  const payloads = buildAdvertisementPayloads("AB3F2K", "");
-  assert.equal(payloads.localName, "AB3F2K");
+test("empty prefix trims local name to the id", () => {
+  const payloads = buildAdvertisementPayloads(USER_ID, APP_ID_ORIGINAL, "");
+  assert.equal(payloads.localName, USER_ID);
+});
+
+test("rejects malformed ids and app ids", () => {
+  assert.throws(() => buildAdvertisementPayloads("SHORT"));
+  assert.throws(() =>
+    buildAdvertisementPayloads(USER_ID, Buffer.alloc(3)),
+  );
 });
