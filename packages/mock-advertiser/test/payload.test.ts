@@ -37,7 +37,7 @@ test("advertisement embeds flags + 0xFFE0 service data with 20-byte beacon", () 
   const beacon = serviceData.subarray(4);
   assert.equal(beacon.length, BEACON_USER_ID_BYTES + BEACON_APP_ID_BYTES);
   assert.equal(beacon.subarray(0, 16).toString("ascii"), USER_ID);
-  assert.deepEqual(beacon.subarray(16), APP_ID_ORIGINAL);
+  assert.deepEqual(Uint8Array.from(beacon.subarray(16)), APP_ID_ORIGINAL);
 });
 
 test("re-translated app id differs and round-trips through parseBeaconPayload", () => {
@@ -49,7 +49,10 @@ test("re-translated app id differs and round-trips through parseBeaconPayload", 
 
   for (const appId of [APP_ID_ORIGINAL, APP_ID_RETRANSLATED]) {
     const raw = concatBeaconPayload(USER_ID, appId);
-    assert.deepEqual(parseBeaconPayload(raw), { userId: USER_ID, appId });
+    assert.deepEqual(parseBeaconPayload(raw), {
+      userId: USER_ID,
+      appId: Uint8Array.from(appId),
+    });
   }
 });
 

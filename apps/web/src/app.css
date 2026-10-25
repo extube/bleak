@@ -1,8 +1,17 @@
 :root {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  color-scheme: light dark;
-  background: #0b0e14;
-  color: #e6e8ee;
+  --yellow: #b8860b;
+  --ink: #131313;
+}
+
+* {
+  border-radius: 0;
+}
+
+:root {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+  background: var(--yellow);
+  color: var(--ink);
 }
 
 body {
@@ -17,58 +26,86 @@ main {
 }
 
 h1 {
-  font-size: 1.35rem;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 1.4rem 0 0.6rem;
+}
+
+h1::after {
+  content: "★ ★ ★";
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.6em;
+  margin-top: 1.4rem;
 }
 
 fieldset {
-  border: 1px solid #2a3040;
-  border-radius: 12px;
+  border: 2px solid var(--ink);
   padding: 1rem;
   margin: 0 0 1rem;
 }
 
 legend {
-  color: #8b93a7;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
   padding: 0 0.4rem;
+  letter-spacing: 0.1em;
 }
 
 input,
 button {
   font: inherit;
-  border-radius: 8px;
-  border: 1px solid #2a3040;
-  background: #141927;
-  color: inherit;
+  border: 2px solid var(--ink);
+  color: var(--ink);
   padding: 0.55rem 0.85rem;
+  box-sizing: border-box;
 }
 
 input {
   width: 100%;
-  box-sizing: border-box;
+  background: var(--yellow);
+  outline: none;
+}
+
+input:focus {
+  background: #d9a428;
 }
 
 button {
   cursor: pointer;
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-  color: #fff;
+  background: var(--ink);
+  color: var(--yellow);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
-button:disabled,
-button[disabled] {
-  opacity: 0.5;
+button:hover:not(:disabled) {
+  background: var(--ink);
+  color: #e6b422;
+}
+
+button:disabled {
+  opacity: 0.45;
   cursor: default;
 }
 
 button.secondary {
-  background: transparent;
-  border-color: #2a3040;
-  color: inherit;
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+button.secondary:hover:not(:disabled) {
+  background: var(--yellow);
+  color: var(--ink);
+  text-decoration: underline;
 }
 
 ul {
-  padding-left: 1.1rem;
+  padding-left: 1.2rem;
 }
 
 li {
@@ -77,19 +114,49 @@ li {
 }
 
 .muted {
-  color: #8b93a7;
   font-size: 0.85rem;
+  opacity: 0.75;
 }
 
 .error {
-  color: #f87171;
   font-size: 0.9rem;
+  font-weight: 700;
   min-height: 1.2em;
+  margin: 0.5rem 0;
+}
+
+.error::before {
+  content: "★ ";
 }
 
 code,
 pre {
-  background: #141927;
-  border-radius: 6px;
+  background: var(--ink);
+  color: var(--yellow);
   padding: 0.1rem 0.35rem;
+}
+
+a {
+  color: var(--ink);
+}
+
+.qr-box {
+  display: inline-block;
+  background: #fff;
+  border: 2px solid var(--ink);
+  padding: 0.75rem;
+}
+
+.stars {
+  letter-spacing: 0.55em;
+  margin-top: 1.2rem;
+}
+
+video {
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 2px solid var(--ink);
+  background: #000;
 }

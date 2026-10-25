@@ -30,7 +30,7 @@ const ADV_PATH_BASE = `${APP_PATH}/adv`;
 
 interface DeviceState {
   userId: string;
-  appId: Buffer;
+  appId: Uint8Array;
   prefix: string;
 }
 
@@ -264,7 +264,7 @@ interface RegisteredAdvertisement {
 
 export interface BluezAdvertiserOptions {
   prefix: string;
-  appId: Buffer;
+  appId: Uint8Array;
   hooks: TargetHooks;
 }
 
@@ -284,7 +284,7 @@ export class BluezAdvertiser implements AdvertiseTarget {
     bus: dbus.MessageBus,
     adapterProxy: dbus.ProxyObject,
     hooks: TargetHooks,
-    appId: Buffer,
+    appId: Uint8Array,
     prefix: string,
   ) {
     this.bus = bus;
@@ -295,7 +295,7 @@ export class BluezAdvertiser implements AdvertiseTarget {
 
   static async connect(
     hooks: TargetHooks,
-    appId: Buffer = APP_ID_ORIGINAL,
+    appId: Uint8Array = APP_ID_ORIGINAL,
     prefix: string,
   ): Promise<BluezAdvertiser> {
     const bus = dbus.systemBus();
