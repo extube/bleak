@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { CLAIM_TTL_MS, ROOM_FIELD_LIMITS, USER_FIELD_LIMITS } from "@ble-id/shared-types";
+import { CLAIM_TTL_MS, INCOME_TTL_MS, ROOM_FIELD_LIMITS, TEMP_CODE_LENGTH, USER_FIELD_LIMITS } from "@ble-id/shared-types";
 
 export interface IdClaimRow {
   user_id: string;
@@ -20,6 +20,16 @@ export interface UserRow {
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
+}
+
+import type { IncomeRecord } from "@ble-id/shared-types";
+
+export interface IncomeRow {
+  room_id: string;
+  temp_id: string;
+  created_at: number;
+  expires_at: number;
+  deleted: number;
 }
 
 export interface RoomRow {
@@ -76,6 +86,14 @@ export class ClaimStore {
         updated_at   INTEGER NOT NULL,
         deleted_at   INTEGER
       );
+      CREATE TABLE IF NOT EXISTS income (
+        temp_id     TEXT PRIMARY KEY,
+        room_id     TEXT NOT NULL,
+        created_at  INTEGER NOT NULL,
+        expires_at  INTEGER NOT NULL,
+        deleted     INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_income_room ON income(room_id);
       CREATE TABLE IF NOT EXISTS rooms (
         room_id      TEXT PRIMARY KEY,
         name         TEXT NOT NULL DEFAULT '',
@@ -245,6 +263,65 @@ export class ClaimStore {
     return row;
   }
 
+  // -- Income (join codes) ---------------------------------------------------
+
+  private generateTempCode(): string {
+    for (;;) {
+      let code = "";
+      for (let i = 0; i < TEMP_CODE_LENGTH; i++) {
+        code += String(randomBytes(1)[0] % 10);
+      }
+      if (!this.db.prepare("SELECT 1 FROM income WHERE temp_id = ?").get(code)) return code;
+    }
+  }
+
+  createIncome(input: { roomId: string; ttlMs?: number; now?: number }):
+    { record: IncomeRecord } | "room-not-found" | "room-already-deleted" {
+    if (!this.roomById(input.roomId)) {
+      return this.roomById(input.roomId, true) ? "room-already-deleted" : "room-not-found";
+    }
+    const now = input.now ?? Date.now();
+    const ttl = input.ttlMs ?? INCOME_TTL_MS;
+    const tempId = this.generateTempCode();
+    this.db
+      .prepare(
+        "INSERT INTO income (temp_id, room_id, created_at, expires_at, deleted) VALUES (?, ?, ?, ?, 0)",
+      )
+      .run(tempId, input.roomId, now, now + ttl);
+    return { record: toIncomeRecord(this.incomeByTempId(tempId, true)!) };
+  }
+
+  incomeByTempId(tempId: string, includeDeleted = false): IncomeRow | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM income WHERE temp_id = ?")
+      .get(tempId) as IncomeRow | undefined;
+    if (!row) return undefined;
+    if (row.deleted !== 0 && !includeDeleted) return undefined;
+    return row;
+  }
+
+  activeIncomeByTempId(tempId: string): IncomeRow | undefined {
+    const row = this.incomeByTempId(tempId);
+    if (!row || row.expires_at <= Date.now()) return undefined;
+    return row;
+  }
+
+  listIncomeForRoom(roomId: string, onlyActive = false): IncomeRow[] {
+    let sql = "SELECT * FROM income WHERE room_id = ?";
+    if (onlyActive) sql += " AND deleted = 0 AND expires_at > ?";
+    const params = onlyActive ? [roomId, Date.now()] : [roomId];
+    return this.db.prepare(`${sql} ORDER BY created_at DESC`).all(...params) as unknown as IncomeRow[];
+  }
+
+  /** Tombstones an income line — "deleted" becomes 1, joins stop resolving. */
+  softDeleteIncome(tempId: string): "deleted" | "not-found" | "already-deleted" {
+    if (!this.incomeByTempId(tempId, true)) return "not-found";
+    const row = this.incomeByTempId(tempId);
+    if (!row) return "already-deleted";
+    this.db.prepare("UPDATE income SET deleted = 1 WHERE temp_id = ?").run(tempId);
+    return "deleted";
+  }
+
   // -- Users (room-scoped) ---------------------------------------------------
 
   createUser(input: {
@@ -397,11 +474,22 @@ export class ClaimStore {
     const now = Date.now();
     this.db.prepare("DELETE FROM claims WHERE expires_at <= ?").run(now);
     this.db.prepare("DELETE FROM exchanges WHERE expires_at <= ?").run(now);
+    this.db.prepare("DELETE FROM income WHERE expires_at <= ?").run(now);
   }
 
   close(): void {
     this.db.close();
   }
+}
+
+export function toIncomeRecord(row: IncomeRow): IncomeRecord {
+  return {
+    roomId: row.room_id,
+    tempId: row.temp_id,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    deleted: row.deleted !== 0,
+  };
 }
 
 /** Tokens are stored hashed — SQLite is not the right place to hold secrets. */
