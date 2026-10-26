@@ -33,6 +33,12 @@ npm run dev:web      # web client on http://localhost:5173
 
 Open two browser windows (or phone + desktop on the same network) to see IDs relayed live. The native app itself is serverless for BLE: it produces and consumes advertisements on the phone, and syncs with the relay only when one is reachable.
 
+## Contributing
+
+- Branches are created **from `dev`** and PR-merged **into `dev`** (CI/docs flow). `main` is release-only and is never pushed to directly from a working session.
+- Commit style: `feat: [#<task-number>] - <description>` / `fix: [#<task-number>] - <description>`.
+- Tests run with plain `npm test` (node:test + tsx); typecheck with `npm run typecheck`. Both must be green before opening a PR.
+
 ## The flows this repo implements
 
 | Flow | Where | Behavior |
