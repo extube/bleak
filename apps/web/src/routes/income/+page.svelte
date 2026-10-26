@@ -8,6 +8,7 @@
   let joinUrl = $state("");
   let dataUrl = $state("");
   let error = $state("");
+  let copied = $state(false);
 
   /** /income without a code: create a room + income line on the fly (owner path). */
   async function mintIncome(): Promise<IncomeRecord> {
@@ -21,7 +22,6 @@
     dataUrl = await QRCode.toDataURL(joinUrl, {
       width: 320,
       margin: 0,
-      // Two hard colours only — fits the solid yellow/black style.
       color: { dark: "#131313", light: "#ffffff" },
       errorCorrectionLevel: "M",
     });
@@ -33,7 +33,6 @@
     try {
       record = code ? await getIncome(code) : await mintIncome();
       if (!code) {
-        // keep the URL shareable/refresh-proof
         history.replaceState(history.state, "", `/income?code=${record.tempId}`);
       }
       await draw();
@@ -53,44 +52,337 @@
 
   async function copyLink() {
     await navigator.clipboard.writeText(joinUrl);
-    error = "";
+    copied = true;
+    setTimeout(() => (copied = false), 1600);
   }
 
   function fmt(ms: number): string {
     return new Date(ms).toLocaleString();
   }
+
 </script>
 
-<main>
-  <h1>Income code</h1>
-
-  {#if error}
+{#if error}
+  <main>
+    <h1>Income code</h1>
     <p class="error">{error}</p>
-  {/if}
+    <button type="button" class="secondary" onclick={() => history.back()}>← Back</button>
+  </main>
+{:else}
+  <main>
+    <header class="top">
+      <button type="button" class="back" onclick={() => history.back()} aria-label="Back">←</button>
+      <p class="kicker">invitation</p>
+    </header>
 
-  {#if record}
-    <p class="muted">
-      Room <b>{record.roomId}</b> · code <code>{record.tempId}</code>
-      <br />
-      created {fmt(record.createdAt)} · expires {fmt(record.expiresAt)}
-    </p>
+    <section class="ticket" aria-busy={!record}>
+      <div class="ticket-head">
+        <div>
+          <p class="label">Room</p>
+          <p class="room">{record?.roomId ?? "—"}</p>
+        </div>
+        <div class="head-right">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span class="live-label">live</span>
+        </div>
+      </div>
 
-    {#if dataUrl}
-      <p class="qr-box"><img src={dataUrl} alt="Join QR code" width="320" height="320" /></p>
-    {/if}
+      <div class="ticket-body">
+        {#if record && dataUrl}
+          <div class="qr-wrap">
+            <svg class="corner tl" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 1h9M1 1v9M23 1h-9M23 1v9M1 23h9M1 23v-9M23 23h-9M23 23v-9" stroke="var(--ink)" stroke-width="2"/></svg>
+            <img class="qr" src={dataUrl} alt="Join QR code" width="260" height="260" />
+          </div>
+          <p class="code-row">
+            <code class="code">{record.tempId}</code>
+          </p>
+          <p class="meta">
+            created {fmt(record.createdAt)} · expires {fmt(record.expiresAt)}
+          </p>
+          <p class="meta share">
+            <code class="link">{joinUrl}</code>
+          </p>
+          <button type="button" class="copy" class:copied onclick={copyLink}>
+            {copied ? "✓ copied" : "copy invite link"}
+          </button>
+        {:else}
+          <div class="loading">
+            <span class="ring" aria-hidden="true"></span>
+            <p class="meta">minting invitation…</p>
+          </div>
+        {/if}
+      </div>
 
-    <p class="muted">
-      The QR encodes <code>{joinUrl}</code>
-    </p>
+      <div class="ticket-foot">
+        <span>scan or enter the code to join</span>
+        <span>{new Date().getFullYear()}</span>
+      </div>
+    </section>
 
-    <button type="button" class="secondary" onclick={copyLink}>Copy invite link</button>
+    <div class="stripes" aria-hidden="true"></div>
+  </main>
+{/if}
 
-    <p>
-      <button type="button" class="secondary" onclick={() => history.back()}>
-        ← Back
-      </button>
-    </p>
-  {:else if !error}
-    <p class="muted">Loading…</p>
-  {/if}
-</main>
+<style>
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.6rem;
+  }
+
+  .back {
+    padding: 0.45rem 0.8rem;
+  }
+
+  .kicker {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.35em;
+    margin: 0;
+  }
+
+  .ticket {
+    border: 3px solid var(--ink);
+    background: var(--ink);
+    max-width: 420px;
+    position: relative;
+    animation: ticket-in 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards;
+  }
+
+  @keyframes ticket-in {
+    from {
+      opacity: 0;
+      transform: translateY(26px) rotate(-1.5deg);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) rotate(0);
+    }
+  }
+
+  .ticket-head {
+    background: var(--ink);
+    color: var(--yellow);
+    padding: 1rem 1.1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+    margin: 0 0 0.2rem;
+    opacity: 0.8;
+  }
+
+  .room {
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    margin: 0;
+  }
+
+  .head-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .live-dot {
+    width: 9px;
+    height: 9px;
+    background: var(--yellow);
+    display: inline-block;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  .live-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+      box-shadow: 0 0 0 0 rgba(230, 180, 34, 0.7);
+    }
+    50% {
+      opacity: 0.55;
+      box-shadow: 0 0 0 7px rgba(230, 180, 34, 0);
+    }
+  }
+
+  .ticket-body {
+    background: var(--yellow);
+    padding: 1.4rem 1.25rem 1.6rem;
+    text-align: center;
+    border-top: 3px dashed var(--ink);
+    border-bottom: 3px dashed var(--ink);
+  }
+
+  .qr-wrap {
+    display: inline-block;
+    position: relative;
+    padding: 0.6rem;
+    background: #fff;
+    border: 2px solid var(--ink);
+    animation: frame 2.6s ease-in-out infinite alternate;
+  }
+
+  @keyframes frame {
+    from {
+      box-shadow: 0 0 0 0 rgba(19, 19, 19, 0.35);
+    }
+    to {
+      box-shadow: 6px 6px 0 0 var(--ink);
+    }
+  }
+
+  .corner {
+    position: absolute;
+    inset: 4px;
+    width: calc(100% - 8px);
+    height: calc(100% - 8px);
+    animation: corner-blink 1.8s steps(1) infinite;
+  }
+
+  @keyframes corner-blink {
+    0%,
+    100% {
+      opacity: 0.9;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+
+  .qr {
+    display: block;
+  }
+
+  .code-row {
+    margin: 1.1rem 0 0.3rem;
+  }
+
+  .code {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: 0.25em;
+    background: var(--ink);
+    color: var(--yellow);
+    padding: 0.35rem 0.9rem 0.35rem 1.15rem;
+    display: inline-block;
+    text-underline-offset: 0.2em;
+    animation: code-in 0.8s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards;
+    animation-delay: 0.25s;
+  }
+
+  @keyframes code-in {
+    from {
+      opacity: 0;
+      transform: scale(0.75);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .meta {
+    font-size: 0.78rem;
+    margin: 0.45rem 0;
+    color: var(--ink);
+  }
+
+  .share code {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+  }
+
+  .link {
+    font-size: 0.75rem;
+  }
+
+  .copy {
+    margin-top: 0.9rem;
+    width: 100%;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .copy.copied {
+    background: #fff;
+    color: var(--ink);
+  }
+
+  .loading {
+    padding: 2.6rem 0 3rem;
+  }
+
+  .ring {
+    display: inline-block;
+    width: 34px;
+    height: 34px;
+    border: 3px solid var(--ink);
+    border-right-color: transparent !important;
+    border-bottom-color: transparent !important;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .ticket-foot {
+    background: var(--ink);
+    color: var(--yellow);
+    padding: 0.6rem 1.1rem;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+  }
+
+  .stripes {
+    max-width: 420px;
+    height: 12px;
+    margin-top: 0.9rem;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--ink) 0 10px,
+      var(--yellow) 10px 20px,
+      #fff 20px 30px,
+      var(--yellow) 30px 40px
+    );
+    animation: slide 1.2s linear infinite;
+    background-size: 56.57px 100%;
+  }
+
+  @keyframes slide {
+    to {
+      background-position: 56.57px 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ticket,
+    .ticket-head,
+    .code,
+    .qr-wrap,
+    .corner,
+    .live-dot,
+    .stripes {
+      animation: none !important;
+    }
+  }
+</style>
