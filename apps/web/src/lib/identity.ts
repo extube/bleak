@@ -16,7 +16,8 @@ export interface Identity {
 }
 
 export function getOrCreateIdentity(): Identity {
-  const stored = typeof localStorage !== "undefined" ? localStorage.getItem(KEY) : null;
+  const stored =
+    typeof localStorage !== "undefined" ? localStorage.getItem(KEY) : null;
 
   if (stored) {
     const parsed = JSON.parse(stored) as Identity;

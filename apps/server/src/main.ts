@@ -5,7 +5,7 @@ import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import fastifyStatic from "@fastify/static";
 import type { RoomProfile, UserProfile } from "@ble-id/shared-types";
 import { attachWebSocketHub } from "./hub.js";
-import { ClaimStore, type RoomRow, type UserRow } from "./store.js";
+import { ClaimStore, type RoomRow, type UserRow, toIncomeRecord } from "./store.js";
 import { ROOM_FIELD_LIMITS, USER_FIELD_LIMITS } from "@ble-id/shared-types";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -214,6 +214,52 @@ export function buildServer(cfg: Config, store: ClaimStore): FastifyInstance {
       return reply.status(204).send();
     },
   );
+
+  // -- Income (room join codes) ----------------------------------------------
+
+  app.post<{
+    Params: { roomId: string };
+    Body: { expiresInHours?: number };
+  }>("/api/room/:roomId/income", async (request, reply) => {
+    const ttlHours = request.body?.expiresInHours;
+    if (ttlHours !== undefined && (typeof ttlHours !== "number" || !Number.isFinite(ttlHours) || ttlHours <= 0 || ttlHours > 24 * 90)) {
+      return reply.status(400).send({ error: "expiresInHours must be a positive number (≤ 2160)" });
+    }
+    const result = store.createIncome({
+      roomId: request.params.roomId,
+      ttlMs: ttlHours !== undefined ? ttlHours * 60 * 60 * 1000 : undefined,
+    });
+    switch (result) {
+      case "room-not-found":
+        return reply.status(404).send({ error: "unknown roomId" });
+      case "room-already-deleted":
+        return reply.status(410).send({ error: "room is soft-deleted" });
+    }
+    return reply.status(201).send(result.record);
+  });
+
+  app.get<{ Params: { tempId: string } }>("/api/income/:tempId", async (request, reply) => {
+    const row = store.incomeByTempId(request.params.tempId);
+    if (!row) return reply.status(404).send({ error: "unknown tempId" });
+    if (row.expires_at <= Date.now()) {
+      return reply.status(410).send({ error: "temp code expired" });
+    }
+    return reply.send(toIncomeRecord(row));
+  });
+
+  app.get<{ Params: { roomId: string } }>("/api/room/:roomId/income", async (request, reply) => {
+    const roomErr = requireRoom(request.params.roomId);
+    if (roomErr) return reply.status(roomErr.status).send(roomErr.body);
+    return reply.send(store.listIncomeForRoom(request.params.roomId).map(toIncomeRecord));
+  });
+
+  // Soft delete only — tombstones the join code so /join stops resolving it.
+  app.delete<{ Params: { tempId: string } }>("/api/income/:tempId", async (request, reply) => {
+    const result = store.softDeleteIncome(request.params.tempId);
+    if (result === "not-found") return reply.status(404).send({ error: "unknown tempId" });
+    if (result === "already-deleted") return reply.status(410).send({ error: "already soft-deleted" });
+    return reply.status(204).send();
+  });
 
   // -- Migration -------------------------------------------------------------
 

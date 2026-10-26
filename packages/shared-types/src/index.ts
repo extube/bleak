@@ -69,8 +69,27 @@ export const USER_FIELD_LIMITS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Rooms
+// Income (room join codes)
+//
+// An "income" is an invitation line for a room: an 8-digit temp code that
+// opens the room's login for its TTL. Soft-delete tombstones it (bool flag).
 // ---------------------------------------------------------------------------
+
+export interface IncomeRecord {
+  roomId: string;
+  /** 8-digit temporary join code. */
+  tempId: string;
+  createdAt: number;
+  expiresAt: number;
+  deleted: boolean;
+}
+
+/** Default income TTL — 24h. */
+export const INCOME_TTL_MS = 24 * 60 * 60 * 1000;
+
+export const TEMP_CODE_LENGTH = 8;
+
+/** Max lengths enforced by the server for room text fields. */
 
 export interface RoomProfile {
   roomId: string;
@@ -149,10 +168,10 @@ export const BEACON_SERVICE_UUID16 = 0xffe0;
 export const BEACON_SERVICE_UUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
 
 /** App id stamped by the device that generated the user id. */
-export const APP_ID_ORIGINAL = Buffer.from([0xb1, 0xe4, 0xd1, 0xa0]);
+export const APP_ID_ORIGINAL = Uint8Array.from([0xb1, 0xe4, 0xd1, 0xa0]);
 
 /** App id stamped by a re-translator repeating another device's beacon. */
-export const APP_ID_RETRANSLATED = Buffer.from([0xb1, 0xe4, 0xd1, 0xa1]);
+export const APP_ID_RETRANSLATED = Uint8Array.from([0xb1, 0xe4, 0xd1, 0xa1]);
 
 /** How long a claim stays open before expiry (ms). */
 export const CLAIM_TTL_MS = 10 * 60 * 1000;

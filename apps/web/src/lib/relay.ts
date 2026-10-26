@@ -23,7 +23,10 @@ export interface IdRecord {
  * Sidebar note: the URL is intentionally composed like
  *   ws(s)://host/ws  — env-friendly (behind the same reverse proxy).
  */
-export function createRelay(baseWsUrl: string) {
+export function createRelay(
+  baseWsUrl: string,
+  onEvent?: (event: RelayEvent) => void,
+) {
   const state = writable<RelayState>({ status: "idle" });
   const claims = writable<IdRecord[]>([]);
   const claimResults = writable<ClaimResult[]>([]);
@@ -40,12 +43,11 @@ export function createRelay(baseWsUrl: string) {
 
     socket.onopen = () => state.set({ status: "open" });
     socket.onclose = () => {
-      state.update((s) =>
-        s.status === "open" ? { status: "closed" } : s,
-      );
+      state.update((s) => (s.status === "open" ? { status: "closed" } : s));
       if (!closedByUs) scheduleReconnect();
     };
-    socket.onerror = () => state.set({ status: "error", error: "socket error" });
+    socket.onerror = () =>
+      state.set({ status: "error", error: "socket error" });
 
     socket.onmessage = (event) => {
       let msg: RelayEvent;
@@ -54,6 +56,7 @@ export function createRelay(baseWsUrl: string) {
       } catch {
         return;
       }
+      onEvent?.(msg);
       switch (msg.type) {
         case "connected":
           state.set({ status: "open", clientId: msg.clientId });
@@ -79,8 +82,7 @@ export function createRelay(baseWsUrl: string) {
             list.filter(
               (c) =>
                 !(
-                  c.exchangeCode === msg.exchangeCode &&
-                  c.userId === msg.userId
+                  c.exchangeCode === msg.exchangeCode && c.userId === msg.userId
                 ),
             ),
           );
@@ -113,7 +115,11 @@ export function createRelay(baseWsUrl: string) {
     state.set({ status: "idle" });
   }
 
-  function submitClaim(userId: UserId, token: string, exchangeCode: string): void {
+  function submitClaim(
+    userId: UserId,
+    token: string,
+    exchangeCode: string,
+  ): void {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       claimResults.update((l) => [
         { ok: false, reason: "unknown-exchange-code" },

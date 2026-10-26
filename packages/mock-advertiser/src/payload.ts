@@ -32,7 +32,7 @@ function uuid16ToBeBytes(uuid: number): Buffer {
  */
 export function buildAdvertisementPayloads(
   userId: UserId,
-  appId: Buffer = APP_ID_ORIGINAL,
+  appId: Uint8Array = APP_ID_ORIGINAL,
   prefix: string = DEFAULT_NAME_PREFIX,
 ): AdvertisementPayloads {
   if (appId.length !== BEACON_APP_ID_BYTES) {
@@ -78,7 +78,7 @@ export function buildAdvertisementPayloads(
 }
 
 /** Raw 20-byte wire payload: [16 user id ASCII][4 app id]. */
-export function concatBeaconPayload(userId: UserId, appId: Buffer): Buffer {
+export function concatBeaconPayload(userId: UserId, appId: Uint8Array): Buffer {
   if (userId.length !== BEACON_USER_ID_BYTES || appId.length !== BEACON_APP_ID_BYTES) {
     throw new Error("beacon parts must be 16 user chars + 4 app bytes");
   }
@@ -87,11 +87,11 @@ export function concatBeaconPayload(userId: UserId, appId: Buffer): Buffer {
 
 /** Extracts {userId, appId} from raw beacon service-data bytes. */export function parseBeaconPayload(bytes: Buffer): {
   userId: UserId;
-  appId: Buffer;
+  appId: Uint8Array;
 } {
   return {
     userId: bytes.subarray(0, BEACON_USER_ID_BYTES).toString("ascii"),
-    appId: Buffer.from(
+    appId: Uint8Array.from(
       bytes.subarray(BEACON_USER_ID_BYTES, BEACON_APP_ID_BYTES + BEACON_USER_ID_BYTES),
     ),
   };
@@ -100,8 +100,8 @@ export function concatBeaconPayload(userId: UserId, appId: Buffer): Buffer {
 /** Human-readable view of a beacon for logs ("1A2B… / b1e4d1a0"). */
 export function formatBeacon(
   userId: UserId,
-  appId: Buffer,
+  appId: Uint8Array,
   serviceUuid: string = BEACON_SERVICE_UUID,
 ): string {
-  return `${userId} app=${appId.toString("hex")} svc=${serviceUuid}`;
+  return `${userId} app=${Buffer.from(appId).toString("hex")} svc=${serviceUuid}`;
 }

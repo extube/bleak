@@ -1,144 +1,399 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { getOrCreateIdentity, type Identity } from "$lib/identity";
-  import { createRelay, type Relay, type RelayState, type IdRecord } from "$lib/relay";
-  import type { ClaimResult } from "@ble-id/shared-types";
+  import { goto } from "$app/navigation";
 
-  const relay: Relay = createRelay(
-    `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`,
-  );
-
-  let identity: Identity = $state({ userId: "…", token: "" });
-  let exchangeCode = $state("");
-  let submitError = $state("");
-  let shareFallback = $state("");
-
-  let claims: IdRecord[] = $state([]);
-  let claimResults: ClaimResult[] = $state([]);
-  let status = $state<RelayState>({ status: "idle" });
-
-  const statusLabels: Record<string, string> = {
-    idle: "not connected",
-    connecting: "connecting…",
-    open: "live",
-    closed: "reconnecting…",
-    error: "connection error — retrying",
+  type Burst = {
+    x: number;
+    y: number;
+    delay: number;
+    dur: number;
+    sparks: { tx: number; ty: number; delay: number; dur: number }[];
   };
 
-  onMount(() => {
-    identity = getOrCreateIdentity();
-
-    relay.connect();
-
-    // Subscribe the stores into typed local state so this component stays
-    // entirely in runes-land (Svelte 5 style, no $store sugar).
-    relay.state.subscribe((s) => (status = s));
-    relay.claims.subscribe((c) => (claims = c));
-    relay.claimResults.subscribe((r) => (claimResults = r));
-
-    return () => relay.disconnect();
+  const bursts: Burst[] = Array.from({ length: 5 }, (_, i) => {
+    const angleJitter = i * 1.7;
+    const sparks = Array.from({ length: 14 }, (_, j) => {
+      const angle = (j / 14) * Math.PI * 2 + angleJitter;
+      const dist = 46 + ((j * 13) % 38);
+      return {
+        tx: Math.cos(angle) * dist,
+        ty: Math.sin(angle) * dist,
+        delay: (j * 0.021) % 0.3,
+        dur: 1.5 + ((j * 7) % 5) / 10,
+      };
+    });
+    return {
+      x: 12 + ((i * 17 + 29) % 76),
+      y: 14 + ((i * 23 + 41) % 62),
+      delay: i * 1.9,
+      dur: 4.6 + (i % 3),
+      sparks,
+    };
   });
 
-  const latestResult = $derived(claimResults[0]);
-
-  function submit(event: SubmitEvent) {
-    event.preventDefault();
-    submitError = "";
-    const code = exchangeCode.trim().toUpperCase();
-    if (code.length < 4) {
-      submitError =
-        "Code looks too short — get the exchange code from the nearby user's screen.";
-      return;
-    }
-    relay.submitClaim(identity.userId, identity.token, code);
-  }
-
-  async function shareMyId() {
-    const url = `${location.origin}/#${identity.userId}`;
-    shareFallback = "";
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "My BLE ID",
-          text: `My ID: ${identity.userId}`,
-          url,
-        });
-        return;
-      }
-      throw new Error("no-web-share");
-    } catch (err) {
-      if (err instanceof Error && err.message !== "no-web-share") return; // user cancelled
-      await navigator.clipboard.writeText(url);
-      shareFallback = "Share sheet unavailable — link copied instead";
-    }
-  }
-
-  const myTokenPreview = $derived(
-    identity.token ? identity.token.slice(0, 4) + "…" : "",
-  );
+  const start = () => goto("/start");
 </script>
 
-<main>
-  <h1>BLE ID Exchange</h1>
-  <p class="muted">
-    This web client discovers nearby users through the relay server, so it works in
-    every mobile browser — including iOS Safari, which cannot use Bluetooth
-    directly.
-  </p>
-  <p class="muted">
-    Relay: <b>{statusLabels[status.status] ?? status.status}</b>
-    · you are <b>{identity.userId}</b>
-    {#if myTokenPreview}
-      <span class="muted">(token {myTokenPreview})</span>
-    {/if}
-  </p>
+<div class="stage" aria-hidden="true">
+  <svg class="curve curve-a" viewBox="0 0 400 400" fill="none">
+    <path
+      d="M-40 380 C 120 340, 200 220, 180 60 S 320 -80, 420 -20"
+      stroke="var(--yellow)"
+      stroke-width="2"
+      stroke-dasharray="10 14"
+    />
+    <path
+      d="M-40 420 C 150 380, 240 240, 220 80 S 360 -60, 460 0"
+      stroke="#e6b422"
+      stroke-width="1.5"
+      stroke-dasharray="4 10"
+    />
+    <path
+      d="M-60 460 C 180 420, 280 260, 260 100 S 400 -40, 520 20"
+      stroke="#ffffff"
+      stroke-width="1"
+      stroke-dasharray="2 12"
+      opacity="0.55"
+    />
+  </svg>
+  <svg class="curve curve-b" viewBox="0 0 400 400" fill="none">
+    <path
+      d="M420 30 C 280 70, 210 180, 230 330 S 90 470, -20 420"
+      stroke="var(--yellow)"
+      stroke-width="2"
+      stroke-dasharray="10 14"
+    />
+    <path
+      d="M460 -10 C 300 40, 240 160, 260 310 S 100 450, -40 400"
+      stroke="#e6b422"
+      stroke-width="1.5"
+      stroke-dasharray="4 10"
+    />
+  </svg>
 
-  <fieldset>
-    <legend>Claim a nearby user's ID</legend>
-    <form onsubmit={submit}>
-      <input
-        bind:value={exchangeCode}
-        placeholder="Exchange code shown on the other device (e.g. 8F3K2D)"
-        maxlength="12"
-        required
-      />
-      <button type="submit" disabled={status.status !== "open"}>Claim ID</button>
-      <p class="error">
-        {submitError ||
-          (latestResult?.ok === false
-            ? `Last attempt rejected: ${latestResult.reason}`
-            : "")}
-      </p>
-    </form>
-    <ul>
-      {#each claims as claim (claim.claimedAt)}
-        <li><code>{claim.userId}</code> claimed via code {claim.exchangeCode}</li>
+  {#each bursts as burst}
+    <div
+      class="burst"
+      style="left:{burst.x}%; top:{burst.y}%; animation-delay:{burst.delay}s; animation-duration:{burst.dur}s"
+    >
+      {#each burst.sparks as s}
+        <span
+          class="spark"
+          style="--tx:{s.tx}px; --ty:{s.ty}px; animation-delay:{burst.delay + s.delay}s; animation-duration:{s.dur}s"
+        ></span>
       {/each}
-      {#if claims.length === 0}
-        <li class="muted">No claimed IDs yet.</li>
-      {/if}
-    </ul>
-  </fieldset>
+    </div>
+  {/each}
+</div>
 
-  <fieldset>
-    <legend>Share your ID</legend>
-    <button onclick={shareMyId}>Share {identity.userId} via link / share sheet</button>
-    <p class="muted">{shareFallback}</p>
-  </fieldset>
+<main>
+  <p class="kicker">ble id exchange</p>
+  <h1 class="hero">Scan.<br />Claim.<br />It's yours.</h1>
+  <div class="rule" aria-hidden="true"></div>
+  <p class="lede">
+    Rooms, codes and nearby users — no long words, just scan.
+  </p>
 
-  <fieldset>
-    <legend>How it works</legend>
-    <ol>
-      <li>A working nearby wrapper displays an <b>exchange code</b> and BLE-advertises it.</li>
-      <li>
-        You enter that code here, and your ID + a one-time token is posted via the
-        relay.
-      </li>
-      <li>The wrapper captures it, verifies, and starts advertising your ID.</li>
-    </ol>
-    <p class="muted">
-      Protocol types:
-      <code>packages/shared-types</code> · server: <code>apps/server</code>
-    </p>
-  </fieldset>
+  <button class="cta" type="button" onclick={start}>
+    Start
+    <span class="cta-arrow" aria-hidden="true">→</span>
+  </button>
+
+  <p class="note muted">
+    Everything listens over the relay, so it works in every mobile browser —
+    including iOS Safari.
+  </p>
+
+  <div class="ribbon" aria-hidden="true">
+    <div class="ribbon-track">
+      <span>★ nearby first ★ scan to join ★ one-time codes ★ no passwords ★</span>
+      <span>★ nearby first ★ scan to join ★ one-time codes ★ no passwords ★</span>
+    </div>
+  </div>
 </main>
+
+<style>
+  .stage {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .curve {
+    position: absolute;
+    width: 60vmin;
+    height: 60vmin;
+    opacity: 0.5;
+    animation: drift 16s ease-in-out infinite alternate;
+  }
+
+  .curve-a {
+    top: -14vmin;
+    left: -14vmin;
+  }
+
+  .curve-b {
+    bottom: -14vmin;
+    right: -14vmin;
+    animation-delay: -8s;
+  }
+
+  @keyframes drift {
+    from {
+      transform: rotate(0deg) scale(1);
+    }
+    to {
+      transform: rotate(8deg) scale(1.06);
+    }
+  }
+
+  .burst {
+    position: absolute;
+    width: 0;
+    height: 0;
+    animation: repop 7s steps(1) infinite;
+  }
+
+  @keyframes repop {
+    0%,
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .spark {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: var(--yellow);
+    box-shadow: 0 0 6px 0 rgba(230, 180, 34, 0.9);
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+    animation-name: fly;
+    animation-timing-function: cubic-bezier(0.16, 0.84, 0.42, 1);
+    animation-iteration-count: infinite;
+    animation-fill-mode: backwards;
+  }
+
+  .spark:nth-child(3n) {
+    background: #ffffff;
+    box-shadow: 0 0 6px 0 rgba(255, 255, 255, 0.8);
+  }
+
+  .spark:nth-child(4n) {
+    width: 3px;
+    height: 3px;
+    background: #e6b422;
+  }
+
+  @keyframes fly {
+    0% {
+      opacity: 0;
+      transform: translate(0, 0) scale(0.4);
+    }
+    6% {
+      opacity: 1;
+    }
+    70% {
+      opacity: 0.9;
+    }
+    100% {
+      opacity: 0;
+      transform: translate(var(--tx), var(--ty)) scale(1);
+    }
+  }
+
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 3.5rem 1.25rem 2rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+
+  .kicker {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.35em;
+    margin: 0 0 1.1rem;
+    opacity: 0.85;
+    animation: rise 0.9s ease-out backwards;
+  }
+
+  .hero {
+    font-size: clamp(2.6rem, 9vw, 4.6rem);
+    line-height: 1.02;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin: 0;
+    color: var(--ink);
+    text-shadow: 0 0 22px rgba(255, 255, 255, 0.25);
+    animation: rise 0.9s ease-out 0.12s backwards, glow 3.2s ease-in-out 1s infinite alternate;
+  }
+
+  .rule {
+    width: 96px;
+    height: 4px;
+    background: var(--ink);
+    margin: 1.4rem 0 1.3rem;
+    animation: rise 0.9s ease-out 0.2s backwards, widen 0.9s ease-out 0.2s backwards;
+  }
+
+  @keyframes widen {
+    from {
+      width: 0;
+    }
+  }
+
+  .lede {
+    max-width: 34ch;
+    margin: 0 0 2.2rem;
+    font-size: 1rem;
+    line-height: 1.55;
+    animation: rise 0.9s ease-out 0.28s backwards;
+  }
+
+  .cta {
+    align-self: flex-start;
+    padding: 1.05rem 3.2rem;
+    font-size: 1.2rem;
+    border-width: 3px;
+    position: relative;
+    overflow: hidden;
+    animation: rise 0.9s ease-out 0.4s backwards;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .cta:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.28), 0 10px 26px rgba(0, 0, 0, 0.35);
+  }
+
+  .cta:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .cta::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -80%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(
+      120deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.35) 50%,
+      transparent 100%
+    );
+    animation: sheen 3.4s ease-in-out infinite;
+  }
+
+  @keyframes sheen {
+    0%,
+    55% {
+      left: -80%;
+    }
+    75%,
+    100% {
+      left: 130%;
+    }
+  }
+
+  .cta-arrow {
+    display: inline-block;
+    margin-left: 0.5rem;
+    animation: nudge 1.6s ease-in-out infinite;
+  }
+
+  @keyframes nudge {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(5px);
+    }
+  }
+
+  .note {
+    margin-top: 1.6rem;
+    max-width: 42ch;
+  }
+
+  .ribbon {
+    margin-top: 4.5rem;
+    border-top: 2px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+    padding: 0.5rem 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .ribbon-track {
+    display: inline-block;
+    animation: marquee 18s linear infinite;
+  }
+
+  .ribbon-track span {
+    display: inline-block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    padding-right: 0.5em;
+  }
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes glow {
+    from {
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.12);
+    }
+    to {
+      text-shadow: 0 0 26px rgba(255, 255, 255, 0.45);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .curve,
+    .burst,
+    .spark,
+    .hero,
+    .kicker,
+    .rule,
+    .lede,
+    .cta,
+    .cta-arrow,
+    .cta::after,
+    .ribbon-track {
+      animation: none !important;
+    }
+  }
+</style>
