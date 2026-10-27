@@ -64,8 +64,17 @@
     setTimeout(() => (codeCopied = false), 1600);
   }
 
-  function fmt(ms: number): string {
-    return new Date(ms).toLocaleString();
+  function fmtDate(ms: number): string {
+    return new Date(ms)
+      .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+      .toLowerCase();
+  }
+
+  function fmtTime(ms: number): string {
+    return new Date(ms).toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 </script>
 
@@ -86,13 +95,18 @@
         <button type="button" class="code" title="copy code" onclick={copyCode}>
           {codeCopied ? "✓ copied" : record.tempId}
         </button>
-        <p class="meta">
-          created {fmt(record.createdAt)}<br />
-          expires {fmt(record.expiresAt)}
-        </p>
-        <p class="meta share">
-          <code class="link">{joinUrl}</code>
-        </p>
+        <dl class="times">
+          <div class="time-block">
+            <dt>start</dt>
+            <dd class="date">{fmtDate(record.createdAt)}</dd>
+            <dd class="time">{fmtTime(record.createdAt)}</dd>
+          </div>
+          <div class="time-block">
+            <dt>expires</dt>
+            <dd class="date">{fmtDate(record.expiresAt)}</dd>
+            <dd class="time">{fmtTime(record.expiresAt)}</dd>
+          </div>
+        </dl>
         <button type="button" class="secondary copy" class:copied onclick={copyLink}>
           {copied ? "✓ copied" : "copy invite link"}
         </button>
@@ -199,28 +213,55 @@
     text-decoration-thickness: 2px;
   }
 
-  .meta {
-    font-size: 0.72rem;
-    line-height: 1.7;
-    margin: 0.6rem 0 0;
+  .times {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin: 0.4rem 0 0;
+    border-top: 1px solid var(--ink-soft);
+  }
+
+  .time-block {
+    padding: 0.85rem 0.2rem 0;
+    text-align: center;
+  }
+
+  .time-block:first-child {
+    border-right: 1px solid var(--ink-soft);
+  }
+
+  .time-block dt {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+    color: var(--ink);
+    opacity: 0.65;
+  }
+
+  .time-block dd.date {
+    font-size: 0.95rem;
+    font-weight: 800;
+    margin: 0.35rem 0 0.15rem;
+    letter-spacing: 0.06em;
+  }
+
+  .time-block dd.time {
+    font-size: 0.82rem;
+    font-weight: 700;
+    margin: 0;
     color: var(--ink-soft);
-  }
-
-  .share code {
-    display: inline-block;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    vertical-align: bottom;
-  }
-
-  .link {
-    font-size: 0.72rem;
   }
 
   .copy {
     margin-top: 1.2rem;
     width: 100%;
+  }
+
+  .meta {
+    font-size: 0.72rem;
+    line-height: 1.7;
+    margin: 0.6rem 0 0;
+    color: var(--ink-soft);
   }
 
   .copy.copied {
