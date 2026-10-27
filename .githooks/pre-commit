@@ -35,8 +35,16 @@ case "$branch" in
     exit 1
     ;;
   dev)
+    head_sha=$(git rev-parse HEAD)
+    orig_sha=$(git rev-parse ORIG_HEAD 2>/dev/null)
     if [ -f "$gitdir/SQUASH_MSG" ]; then
-      # Squash-merge landing: git merge --squash <branch> && git commit — allowed.
+      # Non-FF squash landing: git merge --squash <branch> && git commit.
+      exit 0
+    fi
+    if [ -n "$orig_sha" ] && [ "$head_sha" = "$orig_sha" ] \
+      && ! git diff --cached --quiet --unified=0 2>/dev/null; then
+      # FF squash landing: --squash fast-forwarded the index without leaving
+      # SQUASH_MSG (git quirk); HEAD == ORIG_HEAD + staged diff gives it away.
       exit 0
     fi
     echo >&2 "BLOCKED: committing directly to 'dev' is forbidden."

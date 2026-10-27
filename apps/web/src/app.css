@@ -1,6 +1,11 @@
 :root {
-  --yellow: #ca8f0a;
-  --ink: #131313;
+  /* Gadsden / ancap palette */
+  --yellow: #f2d027;
+  --yellow-hot: #f2b705;
+  --ink: #0d0d0d;
+  --olive-black: #403001;
+  --olive: #735d1a;
+  --ink-soft: #403001;
 }
 
 * {
@@ -71,7 +76,7 @@ input {
 }
 
 input:focus {
-  background: #d9a428;
+  background: #f2b705;
 }
 
 button {
@@ -85,7 +90,7 @@ button {
 
 button:hover:not(:disabled) {
   background: var(--ink);
-  color: #e6b422;
+  color: #f2d027;
 }
 
 button:disabled {

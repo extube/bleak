@@ -43,7 +43,7 @@
     />
     <path
       d="M-40 420 C 150 380, 240 240, 220 80 S 360 -60, 460 0"
-      stroke="#e6b422"
+      stroke="#f2d027"
       stroke-width="1.5"
       stroke-dasharray="4 10"
     />
@@ -64,7 +64,7 @@
     />
     <path
       d="M460 -10 C 300 40, 240 160, 260 310 S 100 450, -40 400"
-      stroke="#e6b422"
+      stroke="#f2d027"
       stroke-width="1.5"
       stroke-dasharray="4 10"
     />
@@ -184,7 +184,7 @@
   .spark:nth-child(4n) {
     width: 3px;
     height: 3px;
-    background: #e6b422;
+    background: #f2d027;
   }
 
   @keyframes fly {

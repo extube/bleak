@@ -22,7 +22,7 @@
     dataUrl = await QRCode.toDataURL(joinUrl, {
       width: 320,
       margin: 0,
-      color: { dark: "#131313", light: "#ffffff" },
+      color: { dark: "#0d0d0d", light: "#ffffff" },
       errorCorrectionLevel: "M",
     });
   }
