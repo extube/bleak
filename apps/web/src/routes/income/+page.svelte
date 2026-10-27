@@ -90,7 +90,7 @@
       <div class="ticket-body">
         {#if record && dataUrl}
           <div class="qr-outer">
-            <svg class="corner tl" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 1h9M1 1v9M23 1h-9M23 1v9M1 23h9M1 23v-9M23 23h-9M23 23v-9" stroke="var(--ink)" stroke-width="2"/></svg>
+            <svg class="corner tl" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 1h9M1 1v9M23 1h-9M23 1v9M1 23h9M1 23v-9M23 23h-9M23 23v-9" stroke="var(--ink)" stroke-width="1"/></svg>
             <div class="qr-wrap">
               <img class="qr" src={dataUrl} alt="Join QR code" width="220" height="220" />
             </div>
