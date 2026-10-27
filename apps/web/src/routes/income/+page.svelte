@@ -9,6 +9,7 @@
   let dataUrl = $state("");
   let error = $state("");
   let copied = $state(false);
+  let codeCopied = $state(false);
 
   /** /income without a code: create a room + income line on the fly (owner path). */
   async function mintIncome(): Promise<IncomeRecord> {
@@ -20,9 +21,9 @@
     if (!record) return;
     joinUrl = `${location.origin}/join?code=${record.tempId}`;
     dataUrl = await QRCode.toDataURL(joinUrl, {
-      width: 320,
+      width: 220,
       margin: 0,
-      color: { dark: "#131313", light: "#ffffff" },
+      color: { dark: "#0d0d0d", light: "#fffdf2" },
       errorCorrectionLevel: "M",
     });
   }
@@ -56,10 +57,25 @@
     setTimeout(() => (copied = false), 1600);
   }
 
-  function fmt(ms: number): string {
-    return new Date(ms).toLocaleString();
+  async function copyCode() {
+    if (!record) return;
+    await navigator.clipboard.writeText(record.tempId);
+    codeCopied = true;
+    setTimeout(() => (codeCopied = false), 1600);
   }
 
+  function fmtDate(ms: number): string {
+    return new Date(ms)
+      .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+      .toLowerCase();
+  }
+
+  function fmtTime(ms: number): string {
+    return new Date(ms).toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
 </script>
 
 {#if error}
@@ -70,53 +86,33 @@
   </main>
 {:else}
   <main>
-    <header class="top">
-      <button type="button" class="back" onclick={() => history.back()} aria-label="Back">←</button>
-      <p class="kicker">invitation</p>
-    </header>
-
-    <section class="ticket" aria-busy={!record}>
-      <div class="ticket-head">
-        <div>
-          <p class="label">Room</p>
-          <p class="room">{record?.roomId ?? "—"}</p>
+    <section class="card" aria-busy={!record}>
+      {#if record && dataUrl}
+        <p class="label">room {record.roomId} <span class="live-dot" aria-hidden="true"></span></p>
+        <div class="qr-wrap">
+          <img class="qr" src={dataUrl} alt="Join QR code" width="220" height="220" />
         </div>
-        <div class="head-right">
-          <span class="live-dot" aria-hidden="true"></span>
-          <span class="live-label">live</span>
-        </div>
-      </div>
-
-      <div class="ticket-body">
-        {#if record && dataUrl}
-          <div class="qr-wrap">
-            <svg class="corner tl" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 1h9M1 1v9M23 1h-9M23 1v9M1 23h9M1 23v-9M23 23h-9M23 23v-9" stroke="var(--ink)" stroke-width="2"/></svg>
-            <img class="qr" src={dataUrl} alt="Join QR code" width="260" height="260" />
+        <button type="button" class="code" title="copy code" onclick={copyCode}>
+          {codeCopied ? "✓ copied" : record.tempId}
+        </button>
+        <dl class="times">
+          <div class="time-block">
+            <dt>start</dt>
+            <dd class="date">{fmtDate(record.createdAt)}</dd>
+            <dd class="time">{fmtTime(record.createdAt)}</dd>
           </div>
-          <p class="code-row">
-            <code class="code">{record.tempId}</code>
-          </p>
-          <p class="meta">
-            created {fmt(record.createdAt)} · expires {fmt(record.expiresAt)}
-          </p>
-          <p class="meta share">
-            <code class="link">{joinUrl}</code>
-          </p>
-          <button type="button" class="copy" class:copied onclick={copyLink}>
-            {copied ? "✓ copied" : "copy invite link"}
-          </button>
-        {:else}
-          <div class="loading">
-            <span class="ring" aria-hidden="true"></span>
-            <p class="meta">minting invitation…</p>
+          <div class="time-block">
+            <dt>expires</dt>
+            <dd class="date">{fmtDate(record.expiresAt)}</dd>
+            <dd class="time">{fmtTime(record.expiresAt)}</dd>
           </div>
-        {/if}
-      </div>
-
-      <div class="ticket-foot">
-        <span>scan or enter the code to join</span>
-        <span>{new Date().getFullYear()}</span>
-      </div>
+        </dl>
+        <button type="button" class="secondary copy" class:copied onclick={copyLink}>
+          {copied ? "✓ copied" : "copy invite link"}
+        </button>
+      {:else}
+        <p class="meta">minting invitation…</p>
+      {/if}
     </section>
 
     <div class="stripes" aria-hidden="true"></div>
@@ -124,265 +120,152 @@
 {/if}
 
 <style>
-  .top {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1.6rem;
-  }
-
-  .back {
-    padding: 0.45rem 0.8rem;
-  }
-
-  .kicker {
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.35em;
-    margin: 0;
-  }
-
-  .ticket {
-    border: 3px solid var(--ink);
-    background: var(--ink);
-    max-width: 420px;
-    position: relative;
-    animation: ticket-in 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards;
-  }
-
-  @keyframes ticket-in {
-    from {
-      opacity: 0;
-      transform: translateY(26px) rotate(-1.5deg);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) rotate(0);
-    }
-  }
-
-  .ticket-head {
-    background: var(--ink);
-    color: var(--yellow);
-    padding: 1rem 1.1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .card {
+    max-width: 300px;
+    margin: 0 auto;
+    padding: 2.2rem 1.6rem;
+    border: 2px solid var(--ink);
+    text-align: center;
   }
 
   .label {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.28em;
-    margin: 0 0 0.2rem;
-    opacity: 0.8;
-  }
-
-  .room {
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    margin: 0;
-  }
-
-  .head-right {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    margin: 0 0 1.4rem;
   }
 
   .live-dot {
-    width: 9px;
-    height: 9px;
-    background: var(--yellow);
     display: inline-block;
+    width: 7px;
+    height: 7px;
+    background: var(--ink);
+    vertical-align: 0.1em;
+    margin-left: 0.45em;
     animation: pulse 1.4s ease-in-out infinite;
-  }
-
-  .live-label {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
   }
 
   @keyframes pulse {
     0%,
     100% {
       opacity: 1;
-      box-shadow: 0 0 0 0 rgba(230, 180, 34, 0.7);
     }
     50% {
-      opacity: 0.55;
-      box-shadow: 0 0 0 7px rgba(230, 180, 34, 0);
+      opacity: 0.25;
     }
   }
 
-  .ticket-body {
-    background: var(--yellow);
-    padding: 1.4rem 1.25rem 1.6rem;
-    text-align: center;
-    border-top: 3px dashed var(--ink);
-    border-bottom: 3px dashed var(--ink);
+  .stripes {
+    max-width: 320px;
+    height: 8px;
+    margin: 1.4rem auto 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--ink) 0 8px,
+      var(--yellow) 8px 16px,
+      #fffdf2 16px 24px,
+      var(--yellow) 24px 32px
+    );
+    animation: slide 1.2s linear infinite;
+    background-size: 45.25px 100%;
+  }
+
+  @keyframes slide {
+    to {
+      background-position: 45.25px 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .live-dot,
+    .stripes {
+      animation: none !important;
+    }
   }
 
   .qr-wrap {
     display: inline-block;
-    position: relative;
-    padding: 0.6rem;
-    background: #fff;
+    padding: 10px;
+    background: #fffdf2;
     border: 2px solid var(--ink);
-    animation: frame 2.6s ease-in-out infinite alternate;
-  }
-
-  @keyframes frame {
-    from {
-      box-shadow: 0 0 0 0 rgba(19, 19, 19, 0.35);
-    }
-    to {
-      box-shadow: 6px 6px 0 0 var(--ink);
-    }
-  }
-
-  .corner {
-    position: absolute;
-    inset: 4px;
-    width: calc(100% - 8px);
-    height: calc(100% - 8px);
-    animation: corner-blink 1.8s steps(1) infinite;
-  }
-
-  @keyframes corner-blink {
-    0%,
-    100% {
-      opacity: 0.9;
-    }
-    50% {
-      opacity: 0;
-    }
   }
 
   .qr {
     display: block;
   }
 
-  .code-row {
-    margin: 1.1rem 0 0.3rem;
-  }
-
   .code {
-    font-size: 2rem;
+    display: inline-block;
+    font-size: 1.5rem;
     font-weight: 800;
     letter-spacing: 0.25em;
-    background: var(--ink);
-    color: var(--yellow);
-    padding: 0.35rem 0.9rem 0.35rem 1.15rem;
-    display: inline-block;
-    text-underline-offset: 0.2em;
-    animation: code-in 0.8s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards;
-    animation-delay: 0.25s;
-  }
-
-  @keyframes code-in {
-    from {
-      opacity: 0;
-      transform: scale(0.75);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  .meta {
-    font-size: 0.78rem;
-    margin: 0.45rem 0;
+    margin: 1.3rem 0 0.8rem;
+    background: none;
+    border: none;
     color: var(--ink);
+    padding: 0;
   }
 
-  .share code {
-    display: inline-block;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    vertical-align: bottom;
+  .code:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 2px;
   }
 
-  .link {
-    font-size: 0.75rem;
+  .times {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin: 0.4rem 0 0;
+    border-top: 1px solid var(--ink-soft);
+  }
+
+  .time-block {
+    padding: 0.85rem 0.2rem 0;
+    text-align: center;
+  }
+
+  .time-block:first-child {
+    border-right: 1px solid var(--ink-soft);
+  }
+
+  .time-block dt {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+    color: var(--ink);
+    opacity: 0.65;
+  }
+
+  .time-block dd.date {
+    font-size: 0.95rem;
+    font-weight: 800;
+    margin: 0.35rem 0 0.15rem;
+    letter-spacing: 0.06em;
+  }
+
+  .time-block dd.time {
+    font-size: 0.82rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--ink-soft);
   }
 
   .copy {
-    margin-top: 0.9rem;
+    margin-top: 1.2rem;
     width: 100%;
-    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .meta {
+    font-size: 0.72rem;
+    line-height: 1.7;
+    margin: 0.6rem 0 0;
+    color: var(--ink-soft);
   }
 
   .copy.copied {
-    background: #fff;
-    color: var(--ink);
-  }
-
-  .loading {
-    padding: 2.6rem 0 3rem;
-  }
-
-  .ring {
-    display: inline-block;
-    width: 34px;
-    height: 34px;
-    border: 3px solid var(--ink);
-    border-right-color: transparent !important;
-    border-bottom-color: transparent !important;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .ticket-foot {
     background: var(--ink);
     color: var(--yellow);
-    padding: 0.6rem 1.1rem;
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.22em;
-  }
-
-  .stripes {
-    max-width: 420px;
-    height: 12px;
-    margin-top: 0.9rem;
-    background: repeating-linear-gradient(
-      -45deg,
-      var(--ink) 0 10px,
-      var(--yellow) 10px 20px,
-      #fff 20px 30px,
-      var(--yellow) 30px 40px
-    );
-    animation: slide 1.2s linear infinite;
-    background-size: 56.57px 100%;
-  }
-
-  @keyframes slide {
-    to {
-      background-position: 56.57px 0;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .ticket,
-    .ticket-head,
-    .code,
-    .qr-wrap,
-    .corner,
-    .live-dot,
-    .stripes {
-      animation: none !important;
-    }
   }
 </style>

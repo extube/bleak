@@ -16,6 +16,7 @@
   let log = $state<string[]>([]);
   let bleState = $state("BLE listening off");
   let bleError = $state("");
+  const bleUnavailable = $derived(bleState === "BLE unavailable");
 
   function addPeer(peer: Peer) {
     peers = [
@@ -32,7 +33,6 @@
 
   let relay: Relay | null = null;
   let relayStatus = $state<RelayState>({ status: "idle" });
-
   function onRelayEvent(msg: RelayEvent) {
     switch (msg.type) {
       case "connected":
@@ -141,49 +141,204 @@
     );
     relay.state.subscribe(onRelayStatus);
     relay.connect();
+    // Attempt BLE listening right away — Chrome needs a user gesture for the
+    // device picker, so this may no-op; the manual button remains for that.
+    void startBleListen();
     return () => relay?.disconnect();
   });
 </script>
 
-<main>
-  {#if user && roomId}
-    <h1 class="no-star">Room {roomId} — space</h1>
-    <p class="muted">
-      Listening as <b>{user.userId}</b>{user.name ? ` (${user.name})` : ""}
-      · relay {relayStatus.status}
-    </p>
+<svelte:head>
+  <title>space — room {roomId}</title>
+</svelte:head>
 
-    <p>
-      <button type="button" onclick={startBleListen}>Enable BLE listening</button>
-      {#if attachedBle.length}
-        <button type="button" class="secondary" onclick={stopBleListen}>Stop BLE</button>
-      {/if}
-    </p>
-    <p class="muted">{bleState}</p>
-    {#if bleError}<p class="error">{bleError}</p>{/if}
+<div class="frame">
+  <header>
+    <button
+      type="button"
+      class="back"
+      aria-label="back"
+      onclick={() => history.back()}
+    >
+      ←
+    </button>
+    <span class="room-id">room {roomId}</span>
+    <span class="header-spacer"></span>
+  </header>
 
-    <fieldset>
-      <legend>Peers</legend>
-      {#if peers.length === 0}
-        <p class="muted">Nobody yet — waiting for claims or advertisements.</p>
+  <main>
+    {#if user && roomId}
+      <fieldset class="panel">
+        <legend>identity</legend>
+        <p class="row">
+          listening as <code>{user.userId}</code>
+          {#if user.name}<span class="soft">({user.name})</span>{/if}
+        </p>
+        <p class="row soft">relay {relayStatus.status}</p>
+      </fieldset>
+
+      {#if bleUnavailable}
+        <fieldset class="panel">
+          <legend>peers</legend>
+          <p class="soft">nobody yet — peers will appear here</p>
+        </fieldset>
       {:else}
-        <ul>
-          {#each peers as peer (peer.userId + peer.source)}
-            <li><code>{peer.userId}</code> via {peer.source}</li>
+        <fieldset class="panel">
+          <legend>ble</legend>
+          {#if attachedBle.length}
+            <button type="button" class="secondary" onclick={stopBleListen}>
+              stop ble listening
+            </button>
+          {:else}
+            <button type="button" onclick={startBleListen}>enable ble listening</button>
+          {/if}
+          <p class="row soft">{bleState}</p>
+          {#if bleError}
+            <p class="row error">{bleError}</p>
+          {/if}
+        </fieldset>
+
+        <fieldset class="panel">
+          <legend>peers</legend>
+          {#if peers.length === 0}
+            <p class="soft">nobody yet — waiting for claims or advertisements</p>
+          {:else}
+            <ul>
+              {#each peers as peer (peer.userId + peer.source)}
+                <li><code>{peer.userId}</code> via {peer.source}</li>
+              {/each}
+            </ul>
+          {/if}
+        </fieldset>
+
+        <fieldset class="panel">
+          <legend>event log</legend>
+          {#each log as line}
+            <p class="soft">{line}</p>
           {/each}
-        </ul>
+        </fieldset>
       {/if}
-    </fieldset>
+    {:else}
+      <p class="soft">redirecting to room login…</p>
+    {/if}
+  </main>
 
-    <fieldset>
-      <legend>Event log</legend>
-      {#each log as line}
-        <p class="muted">{line}</p>
-      {/each}
-    </fieldset>
+  <footer>
+    {#if user && roomId}
+      {#if bleUnavailable}
+        <p class="footer-alert">
+          mobile app in the works — it will bring full ble functionality here
+        </p>
+      {:else if attachedBle.length}
+        <button type="button" onclick={stopBleListen} class="wide">
+          stop ble listening
+        </button>
+      {:else}
+        <button type="button" onclick={startBleListen} class="wide">
+          enable ble listening
+        </button>
+      {/if}
+    {/if}
+  </footer>
+</div>
 
-    <button type="button" class="secondary" onclick={() => goto("/")}>← Home</button>
-  {:else}
-    <p class="muted">Redirecting to room login…</p>
-  {/if}
-</main>
+<style>
+  .frame {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.8rem 1.25rem;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .back {
+    width: 3.2rem;
+    height: 3.2rem;
+    line-height: 1;
+    padding: 0;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .room-id {
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .header-spacer {
+    flex: 1;
+  }
+
+  main {
+    flex: 1;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 2rem;
+    box-sizing: border-box;
+  }
+
+  fieldset.panel {
+    border: 2px solid var(--ink);
+    border-radius: 0.7rem;
+    padding: 0.6rem 0.75rem 0.4rem;
+    margin-bottom: 1rem;
+  }
+
+  fieldset.panel legend {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0 0.4rem;
+    background: var(--yellow);
+  }
+
+  fieldset.panel .row {
+    margin: 0 0 0.4rem;
+  }
+
+  .wide {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .soft {
+    opacity: 0.75;
+    margin: 0.35rem 0;
+  }
+
+  footer {
+    position: sticky;
+    bottom: 0;
+    background: var(--yellow);
+    border-top: 2px solid var(--ink);
+    padding: 0.8rem 1.25rem;
+    padding-bottom: calc(0.8rem + env(safe-area-inset-bottom));
+  }
+
+  footer .wide {
+    height: 3.2rem;
+  }
+
+  .footer-alert {
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+  }
+
+  .error {
+    font-weight: 700;
+  }
+</style>

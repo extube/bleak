@@ -59,9 +59,29 @@ WEB_DIST_DIR=../web/build npm run dev:server   # SPA + WS on :8787
 
 ## Git rules
 
-- Branches are created **from `dev`**. **Never merge into `dev` or `main`
-  without asking the user first.** `main` is checked out only for hotfixes.
-- Naming: `feat/#<task-number>-<short-name>` / `fix/#<task-number>-<short-name>`.
+Enforced programmatically by repo hooks in `.githooks/` (activate after
+cloning: `git config core.hooksPath .githooks`; installs `pre-commit`,
+`pre-merge-commit`, `post-merge`, `pre-push`).
+
+- **Never push without an explicit user order.** No "tidy-up pushes": pushing
+  happens only when the user asks, every time.
+- **`main` is protected**: local pushes *to* `main` and local merges *into*
+  `main` are blocked by hooks. `main` is release-only — changes land via a
+  dev→main pull request opened by the owner. Never push `main` from a session.
+- **Never commit directly to `dev` or `main`** (pre-commit blocks both, except
+  a `git commit` finishing a `git merge --squash` on `dev`).
+- **Branch naming** (pre-commit refuses commits on differently named branches):
+  - `feat/#<task-number>-<short-name>` — feature work
+  - `bug/#<task-number>-<short-name>` — bug fixes
+  - `hotfix/#<task-number>-<short-name>` — release hotfixes
+- **Merges into `dev`**: any branch may be merged (hooks do not care about the
+  source branch name), but landing on `dev` is **squash-only**
+  (`git merge --squash <branch>` + a `feat|fix: [#n]` commit). Illegal
+  merge commits and fast-forwards into `dev` are auto-unwound by the
+  `post-merge` hook. The only merge-commit exception is **syncing from
+  `main` into `dev`**.
+- Sync first per task: pull latest `main`, merge `main` into `dev` (keeps `dev`
+  ahead-or-equal of `main`, so PRs are clean).
 - Commits: `feat: [#<task-number>] - <description>` (or `fix:`).
 
 ## Security notes

@@ -8,9 +8,8 @@
   let rafId = 0;
 
   let status = $state("Starting camera…");
-  let permissionError = $state("");
+  let cameraError = $state(false);
   let manualOpen = $state(false);
-  let manualCode = $state("");
 
   const CODE_URL = /\/join\?code=([0-9]{8})/;
 
@@ -39,11 +38,11 @@
   async function startCamera() {
     const media = navigator.mediaDevices;
     if (!media?.getUserMedia) {
-      permissionError = "This browser cannot request the camera from here.";
+      cameraError = true;
+      manualOpen = true;
       return;
     }
     try {
-      // The QR flow uses the camera — this is the permission prompt.
       stream = await media.getUserMedia({
         video: { facingMode: "environment" },
         audio: false,
@@ -55,8 +54,8 @@
         scanLoop();
       }
     } catch (err) {
-      permissionError =
-        "Camera permission denied or unavailable — use “enter room code” instead.";
+      cameraError = true;
+      manualOpen = true;
       void err;
     }
   }
@@ -85,7 +84,7 @@
       if (found?.data) {
         if (handleCode(found.data)) return;
         warnedTooFast = Date.now();
-        status = `QR read, but did not match /join?code=… — got “${found.data.slice(0, 40)}”`;
+        status = `QR read, but not an invite — ${found.data.slice(0, 40)}`;
       } else {
         if (Date.now() - warnedTooFast > 3000) status = "Point at a QR code…";
       }
@@ -95,13 +94,56 @@
 
   function enterCode(event: SubmitEvent) {
     event.preventDefault();
-    const code = manualCode.trim();
     if (/^[0-9]{8}$/.test(code)) {
       stopCamera();
       location.href = `/join?code=${code}`;
     } else {
-      permissionError = "Room code needs exactly 8 digits.";
+      status = "Room code needs exactly 8 digits.";
     }
+  }
+
+  const DIGITS = 8;
+  let code = $state("");
+  let cellInputs: HTMLInputElement[] = $state([]);
+  let cells = $state<string[]>(Array(DIGITS).fill(""));
+
+  function focusCell(i: number) {
+    cellInputs[Math.max(0, Math.min(DIGITS - 1, i))]?.focus();
+  }
+
+  function commitCells() {
+    code = cells.join("");
+    if (code.length === DIGITS) {
+      stopCamera();
+      location.href = `/join?code=${code}`;
+    }
+  }
+
+  function onCellInput(i: number, event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const raw = input.value.replace(/\D/g, "");
+    if (raw.length > 1) {
+      const chars = raw.slice(0, DIGITS).split("");
+      cells = cells.map((_, k) => chars[k] ?? "");
+      input.blur();
+      focusCell(chars.length);
+      commitCells();
+      return;
+    }
+    cells[i] = raw;
+    input.value = raw;
+    if (raw && i < DIGITS - 1) focusCell(i + 1);
+    commitCells();
+  }
+
+  function onCellKeydown(i: number, event: KeyboardEvent) {
+    if (event.key === "Backspace" && !cells[i] && i > 0) {
+      focusCell(i - 1);
+      cells[i - 1] = "";
+      (cellInputs[i - 1] as HTMLInputElement).value = "";
+    }
+    if (event.key === "ArrowLeft") focusCell(i - 1);
+    if (event.key === "ArrowRight") focusCell(i + 1);
   }
 
   onMount(() => {
@@ -110,43 +152,223 @@
   });
 </script>
 
-<main>
+<div class="view" class:no-cam={cameraError}>
+  <video bind:this={video} muted playsinline></video>
+  <canvas bind:this={canvas} hidden></canvas>
+
+  <svg class="corners" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <path
+      d="M2 16 V4 Q2 2 4 2 H16 M84 2 H96 Q98 2 98 4 V16 M98 84 V96 Q98 98 96 98 H84 M16 98 H4 Q2 98 2 96 V84"
+      stroke="rgba(255,255,255,0.5)"
+      stroke-width="1.5"
+      fill="none"
+    />
+  </svg>
+
+  {#if cameraError}
+    <p class="alert">This browser cannot request the camera from here.</p>
+  {/if}
+  <p class="status">{status}</p>
+</div>
+
+<footer class="dock">
   <button
     type="button"
-    class="secondary"
+    class="back"
     onclick={() => {
       stopCamera();
       history.back();
     }}
-  >← Back</button>
-
-  <h1>Scan the room QR</h1>
-  {#if permissionError}
-    <p class="error">{permissionError}</p>
-  {:else}
-    <p class="muted">{status}</p>
-  {/if}
-
-  <video bind:this={video} muted playsinline></video>
-  <canvas bind:this={canvas} hidden></canvas>
+    aria-label="Back">←</button
+  >
 
   {#if !manualOpen}
-    <button type="button" class="secondary" onclick={() => (manualOpen = true)}>
-      Enter room code
-    </button>
+    <button type="button" class="enter" onclick={() => (manualOpen = true)}>Enter room code</button>
   {:else}
-    <form onsubmit={enterCode}>
-      <input
-        bind:value={manualCode}
-        inputmode="numeric"
-        maxlength="8"
-        placeholder="8-digit room code"
-        required
-      />
-      <button type="submit">Open room</button>
-      <button type="button" class="secondary" onclick={() => (manualOpen = false)}>
-        Keep scanning
-      </button>
+    <form class="manual" onsubmit={enterCode}>
+      <div class="cells">
+          {#each cells as digit, i}
+          <input
+            type="text"
+            inputmode="numeric"
+            maxlength="1"
+            class:filled={digit}
+            bind:this={cellInputs[i]}
+            bind:value={cells[i]}
+            oninput={(e) => onCellInput(i, e)}
+            onkeydown={(e) => onCellKeydown(i, e)}
+            onpaste={(e) => {
+              e.preventDefault();
+              const text = e.clipboardData?.getData("text") ?? "";
+              const raw = text.replace(/\D/g, "").slice(0, DIGITS);
+              if (!raw) return;
+              const chars = raw.split("");
+              cells = cells.map((_, k) => chars[k] ?? "");
+              focusCell(chars.length);
+              if (chars.length === DIGITS) commitCells();
+            }}
+          />
+        {/each}
+      </div>
+      <button type="submit">Open</button>
     </form>
   {/if}
-</main>
+</footer>
+
+<style>
+  .view {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    overflow: hidden;
+  }
+
+  .view.no-cam video {
+    visibility: hidden;
+  }
+
+  video {
+    width: 100%;
+    max-width: none;
+    aspect-ratio: auto;
+    object-fit: cover;
+    display: block;
+    margin: 0 auto;
+    border: none;
+  }
+
+  .corners {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: min(220px, 76vmin, calc(100% - 3rem));
+    height: min(220px, 76vmin, calc(100% - 6.5rem));
+    max-width: 100%;
+    max-height: 100%;
+    overflow: visible;
+  }
+
+  .alert {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    transform: translateY(-50%);
+    margin: 0;
+    padding: 0 2rem;
+    color: var(--yellow);
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 0.06em;
+  }
+
+  .status {
+    position: absolute;
+    top: calc(1rem + env(safe-area-inset-top));
+    left: 0;
+    right: 0;
+    margin: 0;
+    color: #fff;
+    opacity: 0.55;
+    font-size: 0.8rem;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    background: var(--yellow);
+    border-top: 3px solid var(--ink);
+    padding: 0.9rem calc(1rem + env(safe-area-inset-left)) 0.9rem calc(1rem + env(safe-area-inset-right));
+    padding-bottom: calc(0.9rem + env(safe-area-inset-bottom));
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    min-height: 4.4rem;
+    box-sizing: border-box;
+  }
+
+  .back {
+    flex: none;
+    height: 3.2rem;
+    padding: 0 0.9rem;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .manual input,
+  .manual button {
+    height: 3.2rem;
+    box-sizing: border-box;
+  }
+
+  .enter,
+  .manual {
+    flex: 1;
+  }
+
+  .enter {
+    width: 100%;
+    height: 3.2rem;
+    padding: 0 1rem;
+    box-sizing: border-box;
+  }
+
+  .manual {
+    display: flex;
+    align-items: center;
+  }
+
+  .manual button {
+    flex: none;
+    height: 3.2rem;
+  }
+
+  .manual {
+    flex: 1;
+  }
+
+  .cells {
+    flex: 1;
+    display: flex;
+    gap: 0.4rem;
+    justify-content: center;
+    max-width: 100%;
+    margin: 0 auto;
+    min-width: 0;
+  }
+
+  .cells input {
+    width: clamp(1.9rem, 3.6vmin + 0.9rem, 2.6rem);
+    height: 3.2rem;
+    flex: none;
+    text-align: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    caret-color: var(--ink);
+    padding: 0;
+    letter-spacing: 0;
+    border: 3px solid var(--ink);
+    border-radius: 0.7rem;
+    background: transparent;
+    color: var(--ink);
+    outline: none;
+    transition: background 0.15s;
+  }
+
+  .cells input.filled {
+    background: #fffdf2;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .view,
+    .dock {
+      animation: none !important;
+    }
+  }
+</style>
