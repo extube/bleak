@@ -59,7 +59,6 @@
   function fmt(ms: number): string {
     return new Date(ms).toLocaleString();
   }
-
 </script>
 
 {#if error}
@@ -70,271 +69,70 @@
   </main>
 {:else}
   <main>
-    <header class="top">
-      <button type="button" class="back" onclick={() => history.back()} aria-label="Back">←</button>
-      <p class="kicker">invitation</p>
-    </header>
-
-    <section class="ticket" aria-busy={!record}>
-      <div class="ticket-head">
-        <div>
-          <p class="label">Room</p>
-          <p class="room">{record?.roomId ?? "—"}</p>
+    <section class="card" aria-busy={!record}>
+      {#if record && dataUrl}
+        <p class="label">room {record.roomId}</p>
+        <div class="qr-wrap">
+          <img class="qr" src={dataUrl} alt="Join QR code" width="220" height="220" />
         </div>
-        <div class="head-right">
-          <span class="live-dot" aria-hidden="true"></span>
-          <span class="live-label">live</span>
-        </div>
-      </div>
-
-      <div class="ticket-body">
-        {#if record && dataUrl}
-          <div class="qr-outer">
-            <div class="qr-wrap">
-              <img class="qr" src={dataUrl} alt="Join QR code" width="220" height="220" />
-            </div>
-          </div>
-          <p class="code-row">
-            <code class="code">{record.tempId}</code>
-          </p>
-          <dl class="times">
-            <div class="time-entry">
-              <dt>created</dt>
-              <dd>{fmt(record.createdAt)}</dd>
-            </div>
-            <div class="time-entry expires">
-              <dt>expires</dt>
-              <dd>{fmt(record.expiresAt)}</dd>
-            </div>
-          </dl>
-          <p class="meta share">
-            <code class="link">{joinUrl}</code>
-          </p>
-          <button type="button" class="copy" class:copied onclick={copyLink}>
-            {copied ? "✓ copied" : "copy invite link"}
-          </button>
-        {:else}
-          <div class="loading">
-            <span class="ring" aria-hidden="true"></span>
-            <p class="meta">minting invitation…</p>
-          </div>
-        {/if}
-      </div>
-
-      <div class="ticket-foot">
-        <span>scan or enter the code to join</span>
-        <span>{new Date().getFullYear()}</span>
-      </div>
+        <p class="code">{record.tempId}</p>
+        <p class="meta">
+          created {fmt(record.createdAt)}<br />
+          expires {fmt(record.expiresAt)}
+        </p>
+        <p class="meta share">
+          <code class="link">{joinUrl}</code>
+        </p>
+        <button type="button" class="secondary copy" class:copied onclick={copyLink}>
+          {copied ? "✓ copied" : "copy invite link"}
+        </button>
+      {:else}
+        <p class="meta">minting invitation…</p>
+      {/if}
     </section>
-
-    <div class="stripes" aria-hidden="true"></div>
   </main>
 {/if}
 
 <style>
-  .top {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1.6rem;
-  }
-
-  .back {
-    padding: 0.45rem 0.8rem;
-  }
-
-  .kicker {
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.35em;
-    margin: 0;
-  }
-
-  .ticket {
-    border: 3px solid var(--ink);
-    background: var(--ink);
-    max-width: 420px;
+  .card {
+    max-width: 300px;
     margin: 0 auto;
-    position: relative;
-    animation: ticket-in 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards;
-  }
-
-  @keyframes ticket-in {
-    from {
-      opacity: 0;
-      transform: translateY(26px) rotate(-1.5deg);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) rotate(0);
-    }
-  }
-
-  .ticket-head {
-    background: var(--ink);
-    color: var(--yellow);
-    padding: 1rem 1.1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    padding: 2.2rem 1.6rem;
+    border: 2px solid var(--ink);
+    text-align: center;
   }
 
   .label {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.28em;
-    margin: 0 0 0.2rem;
-    opacity: 0.8;
-  }
-
-  .room {
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    margin: 0;
-  }
-
-  .head-right {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .live-dot {
-    width: 9px;
-    height: 9px;
-    background: var(--yellow);
-    display: inline-block;
-    animation: pulse 1.4s ease-in-out infinite;
-  }
-
-  .live-label {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-      box-shadow: 0 0 0 0 rgba(230, 180, 34, 0.7);
-    }
-    50% {
-      opacity: 0.55;
-      box-shadow: 0 0 0 7px rgba(230, 180, 34, 0);
-    }
-  }
-
-  .ticket-body {
-    background: var(--yellow);
-    padding: 1.4rem 1.25rem 1.6rem;
-    text-align: center;
-    border-top: 3px dashed var(--ink);
-    border-bottom: 3px dashed var(--ink);
-  }
-
-  .qr-outer {
-    display: inline-block;
+    margin: 0 0 1.4rem;
   }
 
   .qr-wrap {
     display: inline-block;
-    padding: 16px;
+    padding: 10px;
     background: #fffdf2;
     border: 2px solid var(--ink);
-    animation: frame 2.6s ease-in-out infinite alternate;
-  }
-
-  @keyframes frame {
-    from {
-      box-shadow: 0 0 0 0 rgba(19, 19, 19, 0.35);
-    }
-    to {
-      box-shadow: 6px 6px 0 0 var(--ink);
-    }
   }
 
   .qr {
     display: block;
   }
 
-  .code-row {
-    margin: 1.1rem 0 0.3rem;
-  }
-
   .code {
-    font-size: 2rem;
+    font-size: 1.5rem;
     font-weight: 800;
     letter-spacing: 0.25em;
-    background: var(--ink);
-    color: var(--yellow);
-    padding: 0.35rem 0.9rem 0.35rem 1.15rem;
-    display: inline-block;
-    text-underline-offset: 0.2em;
-    animation: code-in 0.8s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards;
-    animation-delay: 0.25s;
-  }
-
-  @keyframes code-in {
-    from {
-      opacity: 0;
-      transform: scale(0.75);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
+    margin: 1.3rem 0 0.8rem;
   }
 
   .meta {
-    font-size: 0.78rem;
-    margin: 0.45rem 0;
-    color: var(--ink);
-  }
-
-  .times {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    column-gap: 0.65rem;
-    row-gap: 0.4rem;
-    max-width: 300px;
-    margin: 1.2rem auto 0.4rem;
-    padding: 0.7rem 0.85rem;
-    border: 2px solid var(--ink);
-    background: #fffdf2;
-    text-align: left;
-  }
-
-  .times dt {
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.24em;
-    color: var(--ink);
-    opacity: 0.72;
-    padding-top: 0.2em;
-  }
-
-  .times dd {
-    margin: 0;
-    font-size: 0.82rem;
-    font-weight: 700;
+    font-size: 0.72rem;
+    line-height: 1.7;
+    margin: 0.6rem 0 0;
     color: var(--ink-soft);
-  }
-
-  .time-entry {
-    display: contents;
-  }
-
-  .time-entry.expires dt::after {
-    content: " ✦";
-    color: var(--ink);
-    opacity: 1;
-  }
-
-  .time-entry.expires dd {
-    color: var(--ink);
   }
 
   .share code {
@@ -346,80 +144,16 @@
   }
 
   .link {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
   }
 
   .copy {
-    margin-top: 0.9rem;
+    margin-top: 1.2rem;
     width: 100%;
-    transition: background 0.2s ease, color 0.2s ease;
   }
 
   .copy.copied {
-    background: #fff;
-    color: var(--ink);
-  }
-
-  .loading {
-    padding: 2.6rem 0 3rem;
-  }
-
-  .ring {
-    display: inline-block;
-    width: 34px;
-    height: 34px;
-    border: 3px solid var(--ink);
-    border-right-color: transparent !important;
-    border-bottom-color: transparent !important;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .ticket-foot {
     background: var(--ink);
     color: var(--yellow);
-    padding: 0.6rem 1.1rem;
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.22em;
-  }
-
-  .stripes {
-    max-width: 420px;
-    height: 12px;
-    margin: 0.9rem auto 0;
-    background: repeating-linear-gradient(
-      -45deg,
-      var(--ink) 0 10px,
-      var(--yellow) 10px 20px,
-      #fff 20px 30px,
-      var(--yellow) 30px 40px
-    );
-    animation: slide 1.2s linear infinite;
-    background-size: 56.57px 100%;
-  }
-
-  @keyframes slide {
-    to {
-      background-position: 56.57px 0;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .ticket,
-    .ticket-head,
-    .code,
-    .qr-wrap,
-    .live-dot,
-    .stripes {
-      animation: none !important;
-    }
   }
 </style>
