@@ -214,6 +214,8 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+    align-items: center;
+    text-align: center;
     box-sizing: border-box;
   }
 
@@ -224,6 +226,7 @@
     letter-spacing: 0.35em;
     margin: 0 0 1.1rem;
     opacity: 0.85;
+    text-align: center;
     animation: rise 0.9s ease-out backwards;
   }
 
@@ -258,11 +261,11 @@
     margin: 0 0 2.2rem;
     font-size: 1rem;
     line-height: 1.55;
+    text-align: center;
     animation: rise 0.9s ease-out 0.28s backwards;
   }
 
   .cta {
-    align-self: flex-start;
     padding: 1.05rem 3.2rem;
     font-size: 1.2rem;
     border-width: 3px;
@@ -330,6 +333,7 @@
   }
 
   .ribbon {
+    align-self: stretch;
     margin-top: 4.5rem;
     border-top: 2px solid var(--ink);
     border-bottom: 2px solid var(--ink);
