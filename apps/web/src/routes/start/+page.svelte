@@ -10,7 +10,6 @@
   let status = $state("Starting camera…");
   let cameraError = $state(false);
   let manualOpen = $state(false);
-  let manualCode = $state("");
 
   const CODE_URL = /\/join\?code=([0-9]{8})/;
 
@@ -95,13 +94,56 @@
 
   function enterCode(event: SubmitEvent) {
     event.preventDefault();
-    const code = manualCode.trim();
     if (/^[0-9]{8}$/.test(code)) {
       stopCamera();
       location.href = `/join?code=${code}`;
     } else {
       status = "Room code needs exactly 8 digits.";
     }
+  }
+
+  const DIGITS = 8;
+  let code = $state("");
+  let cellInputs: HTMLInputElement[] = $state([]);
+  let cells = $state<string[]>(Array(DIGITS).fill(""));
+
+  function focusCell(i: number) {
+    cellInputs[Math.max(0, Math.min(DIGITS - 1, i))]?.focus();
+  }
+
+  function commitCells() {
+    code = cells.join("");
+    if (code.length === DIGITS) {
+      stopCamera();
+      location.href = `/join?code=${code}`;
+    }
+  }
+
+  function onCellInput(i: number, event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const raw = input.value.replace(/\D/g, "");
+    if (raw.length > 1) {
+      const chars = raw.slice(0, DIGITS).split("");
+      cells = cells.map((_, k) => chars[k] ?? "");
+      input.blur();
+      focusCell(chars.length);
+      commitCells();
+      return;
+    }
+    cells[i] = raw;
+    input.value = raw;
+    if (raw && i < DIGITS - 1) focusCell(i + 1);
+    commitCells();
+  }
+
+  function onCellKeydown(i: number, event: KeyboardEvent) {
+    if (event.key === "Backspace" && !cells[i] && i > 0) {
+      focusCell(i - 1);
+      cells[i - 1] = "";
+      (cellInputs[i - 1] as HTMLInputElement).value = "";
+    }
+    if (event.key === "ArrowLeft") focusCell(i - 1);
+    if (event.key === "ArrowRight") focusCell(i + 1);
   }
 
   onMount(() => {
@@ -144,17 +186,31 @@
     <button type="button" class="enter" onclick={() => (manualOpen = true)}>Enter room code</button>
   {:else}
     <form class="manual" onsubmit={enterCode}>
-      <input
-        bind:value={manualCode}
-        inputmode="numeric"
-        maxlength="8"
-        placeholder="8-digit code"
-        required
-      />
+      <div class="cells">
+          {#each cells as digit, i}
+          <input
+            type="text"
+            inputmode="numeric"
+            maxlength="1"
+            class:filled={digit}
+            bind:this={cellInputs[i]}
+            bind:value={cells[i]}
+            oninput={(e) => onCellInput(i, e)}
+            onkeydown={(e) => onCellKeydown(i, e)}
+            onpaste={(e) => {
+              e.preventDefault();
+              const text = e.clipboardData?.getData("text") ?? "";
+              const raw = text.replace(/\D/g, "").slice(0, DIGITS);
+              if (!raw) return;
+              const chars = raw.split("");
+              cells = cells.map((_, k) => chars[k] ?? "");
+              focusCell(chars.length);
+              if (chars.length === DIGITS) commitCells();
+            }}
+          />
+        {/each}
+      </div>
       <button type="submit">Open</button>
-      {#if !cameraError}
-        <button type="button" class="secondary" onclick={() => (manualOpen = false)}>Scan</button>
-      {/if}
     </form>
   {/if}
 </footer>
@@ -173,17 +229,20 @@
 
   video {
     width: 100%;
-    height: 100%;
+    max-width: none;
+    aspect-ratio: auto;
     object-fit: cover;
     display: block;
+    margin: 0 auto;
+    border: none;
   }
 
   .corners {
     position: absolute;
     inset: 0;
     margin: auto;
-    width: min(76vmin, calc(100% - 3rem));
-    height: min(76vmin, calc(100% - 6.5rem));
+    width: min(220px, 76vmin, calc(100% - 3rem));
+    height: min(220px, 76vmin, calc(100% - 6.5rem));
     max-width: 100%;
     max-height: 100%;
     overflow: visible;
@@ -235,7 +294,17 @@
 
   .back {
     flex: none;
-    padding: 0.55rem 0.9rem;
+    height: 3.2rem;
+    padding: 0 0.9rem;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .manual input,
+  .manual button {
+    height: 3.2rem;
+    box-sizing: border-box;
   }
 
   .enter,
@@ -245,20 +314,55 @@
 
   .enter {
     width: 100%;
-    padding: 0.85rem 1rem;
+    height: 3.2rem;
+    padding: 0 1rem;
+    box-sizing: border-box;
   }
 
   .manual {
     display: flex;
-    gap: 0.6rem;
+    align-items: center;
   }
 
-  .manual input {
+  .manual button {
+    flex: none;
+    height: 3.2rem;
+  }
+
+  .manual {
     flex: 1;
+  }
+
+  .cells {
+    flex: 1;
+    display: flex;
+    gap: 0.4rem;
+    justify-content: center;
+    max-width: 100%;
+    margin: 0 auto;
     min-width: 0;
+  }
+
+  .cells input {
+    width: clamp(1.9rem, 3.6vmin + 0.9rem, 2.6rem);
+    height: 3.2rem;
+    flex: none;
     text-align: center;
-    letter-spacing: 0.2em;
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    caret-color: var(--ink);
+    padding: 0;
+    letter-spacing: 0;
+    border: 3px solid var(--ink);
+    border-radius: 0.7rem;
+    background: transparent;
+    color: var(--ink);
+    outline: none;
+    transition: background 0.15s;
+  }
+
+  .cells input.filled {
+    background: #fffdf2;
   }
 
   @media (prefers-reduced-motion: reduce) {
