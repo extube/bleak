@@ -20,9 +20,9 @@
     if (!record) return;
     joinUrl = `${location.origin}/join?code=${record.tempId}`;
     dataUrl = await QRCode.toDataURL(joinUrl, {
-      width: 320,
+      width: 220,
       margin: 0,
-      color: { dark: "#0d0d0d", light: "#ffffff" },
+      color: { dark: "#0d0d0d", light: "#fffdf2" },
       errorCorrectionLevel: "M",
     });
   }
@@ -91,14 +91,21 @@
         {#if record && dataUrl}
           <div class="qr-wrap">
             <svg class="corner tl" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 1h9M1 1v9M23 1h-9M23 1v9M1 23h9M1 23v-9M23 23h-9M23 23v-9" stroke="var(--ink)" stroke-width="2"/></svg>
-            <img class="qr" src={dataUrl} alt="Join QR code" width="260" height="260" />
+            <img class="qr" src={dataUrl} alt="Join QR code" width="220" height="220" />
           </div>
           <p class="code-row">
             <code class="code">{record.tempId}</code>
           </p>
-          <p class="meta">
-            created {fmt(record.createdAt)} · expires {fmt(record.expiresAt)}
-          </p>
+          <dl class="times">
+            <div class="time-entry">
+              <dt>created</dt>
+              <dd>{fmt(record.createdAt)}</dd>
+            </div>
+            <div class="time-entry expires">
+              <dt>expires</dt>
+              <dd>{fmt(record.expiresAt)}</dd>
+            </div>
+          </dl>
           <p class="meta share">
             <code class="link">{joinUrl}</code>
           </p>
@@ -147,6 +154,7 @@
     border: 3px solid var(--ink);
     background: var(--ink);
     max-width: 420px;
+    margin: 0 auto;
     position: relative;
     animation: ticket-in 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards;
   }
@@ -228,8 +236,8 @@
   .qr-wrap {
     display: inline-block;
     position: relative;
-    padding: 0.6rem;
-    background: #fff;
+    padding: 16px;
+    background: #fffdf2;
     border: 2px solid var(--ink);
     animation: frame 2.6s ease-in-out infinite alternate;
   }
@@ -245,9 +253,11 @@
 
   .corner {
     position: absolute;
-    inset: 4px;
-    width: calc(100% - 8px);
-    height: calc(100% - 8px);
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 4px;
+    box-sizing: border-box;
     animation: corner-blink 1.8s steps(1) infinite;
   }
 
@@ -296,6 +306,50 @@
   .meta {
     font-size: 0.78rem;
     margin: 0.45rem 0;
+    color: var(--ink);
+  }
+
+  .times {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.65rem;
+    row-gap: 0.4rem;
+    max-width: 300px;
+    margin: 1.2rem auto 0.4rem;
+    padding: 0.7rem 0.85rem;
+    border: 2px solid var(--ink);
+    background: #fffdf2;
+    text-align: left;
+  }
+
+  .times dt {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.24em;
+    color: var(--ink);
+    opacity: 0.72;
+    padding-top: 0.2em;
+  }
+
+  .times dd {
+    margin: 0;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--ink-soft);
+  }
+
+  .time-entry {
+    display: contents;
+  }
+
+  .time-entry.expires dt::after {
+    content: " ✦";
+    color: var(--ink);
+    opacity: 1;
+  }
+
+  .time-entry.expires dd {
     color: var(--ink);
   }
 
@@ -356,7 +410,7 @@
   .stripes {
     max-width: 420px;
     height: 12px;
-    margin-top: 0.9rem;
+    margin: 0.9rem auto 0;
     background: repeating-linear-gradient(
       -45deg,
       var(--ink) 0 10px,
