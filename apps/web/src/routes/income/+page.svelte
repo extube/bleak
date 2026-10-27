@@ -71,7 +71,7 @@
   <main>
     <section class="card" aria-busy={!record}>
       {#if record && dataUrl}
-        <p class="label">room {record.roomId}</p>
+        <p class="label">room {record.roomId} <span class="live-dot" aria-hidden="true"></span></p>
         <div class="qr-wrap">
           <img class="qr" src={dataUrl} alt="Join QR code" width="220" height="220" />
         </div>
@@ -90,6 +90,8 @@
         <p class="meta">minting invitation…</p>
       {/if}
     </section>
+
+    <div class="stripes" aria-hidden="true"></div>
   </main>
 {/if}
 
@@ -108,6 +110,54 @@
     text-transform: uppercase;
     letter-spacing: 0.28em;
     margin: 0 0 1.4rem;
+  }
+
+  .live-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background: var(--ink);
+    vertical-align: 0.1em;
+    margin-left: 0.45em;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.25;
+    }
+  }
+
+  .stripes {
+    max-width: 320px;
+    height: 8px;
+    margin: 1.4rem auto 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--ink) 0 8px,
+      var(--yellow) 8px 16px,
+      #fffdf2 16px 24px,
+      var(--yellow) 24px 32px
+    );
+    animation: slide 1.2s linear infinite;
+    background-size: 45.25px 100%;
+  }
+
+  @keyframes slide {
+    to {
+      background-position: 45.25px 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .live-dot,
+    .stripes {
+      animation: none !important;
+    }
   }
 
   .qr-wrap {
