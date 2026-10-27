@@ -9,6 +9,7 @@
   let dataUrl = $state("");
   let error = $state("");
   let copied = $state(false);
+  let codeCopied = $state(false);
 
   /** /income without a code: create a room + income line on the fly (owner path). */
   async function mintIncome(): Promise<IncomeRecord> {
@@ -56,6 +57,13 @@
     setTimeout(() => (copied = false), 1600);
   }
 
+  async function copyCode() {
+    if (!record) return;
+    await navigator.clipboard.writeText(record.tempId);
+    codeCopied = true;
+    setTimeout(() => (codeCopied = false), 1600);
+  }
+
   function fmt(ms: number): string {
     return new Date(ms).toLocaleString();
   }
@@ -75,7 +83,9 @@
         <div class="qr-wrap">
           <img class="qr" src={dataUrl} alt="Join QR code" width="220" height="220" />
         </div>
-        <p class="code">{record.tempId}</p>
+        <button type="button" class="code" title="copy code" onclick={copyCode}>
+          {codeCopied ? "✓ copied" : record.tempId}
+        </button>
         <p class="meta">
           created {fmt(record.createdAt)}<br />
           expires {fmt(record.expiresAt)}
@@ -172,10 +182,21 @@
   }
 
   .code {
+    display: inline-block;
     font-size: 1.5rem;
     font-weight: 800;
     letter-spacing: 0.25em;
     margin: 1.3rem 0 0.8rem;
+    background: none;
+    border: none;
+    color: var(--ink);
+    padding: 0;
+  }
+
+  .code:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 2px;
   }
 
   .meta {
