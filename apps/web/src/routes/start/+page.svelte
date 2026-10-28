@@ -104,51 +104,48 @@
 
   const DIGITS = 8;
   let code = $state("");
-  let cellInputs: HTMLInputElement[] = $state([]);
-  let cells = $state<string[]>(Array(DIGITS).fill(""));
+  let codeInput: HTMLInputElement | undefined = $state();
+  let dockEl: HTMLElement | undefined = $state();
 
-  function focusCell(i: number) {
-    cellInputs[Math.max(0, Math.min(DIGITS - 1, i))]?.focus();
-  }
-
-  function commitCells() {
-    code = cells.join("");
+  function onCodeInput(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    code = input.value.replace(/\D/g, "").slice(0, DIGITS);
+    input.value = code;
     if (code.length === DIGITS) {
       stopCamera();
-      location.href = `/join?code=${code}`;
+      setTimeout(() => (location.href = `/join?code=${code}`), 250);
     }
   }
 
-  function onCellInput(i: number, event: Event) {
-    const input = event.currentTarget as HTMLInputElement;
-    const raw = input.value.replace(/\D/g, "");
-    if (raw.length > 1) {
-      const chars = raw.slice(0, DIGITS).split("");
-      cells = cells.map((_, k) => chars[k] ?? "");
-      input.blur();
-      focusCell(chars.length);
-      commitCells();
-      return;
+  function onCodeKeydown(event: KeyboardEvent) {
+    if (event.key === "Backspace" && !codeInput?.value) {
+      event.preventDefault();
+      code = code.slice(0, -1);
     }
-    cells[i] = raw;
-    input.value = raw;
-    if (raw && i < DIGITS - 1) focusCell(i + 1);
-    commitCells();
-  }
-
-  function onCellKeydown(i: number, event: KeyboardEvent) {
-    if (event.key === "Backspace" && !cells[i] && i > 0) {
-      focusCell(i - 1);
-      cells[i - 1] = "";
-      (cellInputs[i - 1] as HTMLInputElement).value = "";
-    }
-    if (event.key === "ArrowLeft") focusCell(i - 1);
-    if (event.key === "ArrowRight") focusCell(i + 1);
   }
 
   onMount(() => {
     void startCamera();
-    return stopCamera;
+    codeInput?.focus();
+
+    const vv = window.visualViewport;
+    const syncKeyboard = () => {
+      if (!dockEl || !vv) return;
+      const overlap = window.innerHeight - (vv.height + vv.offsetTop);
+      dockEl.style.bottom = `${Math.max(0, overlap)}px`;
+    };
+    if (vv) {
+      vv.addEventListener("resize", syncKeyboard);
+      vv.addEventListener("scroll", syncKeyboard);
+    }
+
+    return () => {
+      stopCamera();
+      if (vv) {
+        vv.removeEventListener("resize", syncKeyboard);
+        vv.removeEventListener("scroll", syncKeyboard);
+      }
+    };
   });
 </script>
 
@@ -171,7 +168,7 @@
   <p class="status">{status}</p>
 </div>
 
-<footer class="dock">
+<footer class="dock" bind:this={dockEl}>
   <button
     type="button"
     class="back"
@@ -186,31 +183,34 @@
     <button type="button" class="enter" onclick={() => (manualOpen = true)}>Enter room code</button>
   {:else}
     <form class="manual" onsubmit={enterCode}>
-      <div class="cells">
-          {#each cells as digit, i}
-          <input
-            type="text"
-            inputmode="numeric"
-            maxlength="1"
-            class:filled={digit}
-            bind:this={cellInputs[i]}
-            bind:value={cells[i]}
-            oninput={(e) => onCellInput(i, e)}
-            onkeydown={(e) => onCellKeydown(i, e)}
-            onpaste={(e) => {
-              e.preventDefault();
-              const text = e.clipboardData?.getData("text") ?? "";
-              const raw = text.replace(/\D/g, "").slice(0, DIGITS);
-              if (!raw) return;
-              const chars = raw.split("");
-              cells = cells.map((_, k) => chars[k] ?? "");
-              focusCell(chars.length);
-              if (chars.length === DIGITS) commitCells();
-            }}
-          />
-        {/each}
+      <div
+        class="codebox"
+        role="group"
+        aria-label="8-digit room code"
+        onclick={() => codeInput?.focus()}
+      >
+        <input
+          class="real"
+          bind:this={codeInput}
+          bind:value={code}
+          oninput={onCodeInput}
+          onkeydown={onCodeKeydown}
+          inputmode="numeric"
+          maxlength="8"
+          autocomplete="one-time-code"
+          spellcheck="false"
+        />
+        <div class="slots" aria-hidden="true">
+          {#each Array(DIGITS) as _, i}
+            <span class="slot" class:filled={code.length > i} class:live={code.length === i}>
+              {#if code[i]}<span class="digit">{code[i]}</span>{/if}
+              {#if code.length === i}
+                <span class="blink"></span>
+              {/if}
+            </span>
+          {/each}
+        </div>
       </div>
-      <button type="submit">Open</button>
     </form>
   {/if}
 </footer>
@@ -228,12 +228,14 @@
   }
 
   video {
+    position: absolute;
+    inset: 0;
     width: 100%;
     max-width: none;
+    height: 100%;
     aspect-ratio: auto;
     object-fit: cover;
     display: block;
-    margin: 0 auto;
     border: none;
   }
 
@@ -302,8 +304,8 @@
   }
 
   .manual input,
-  .manual button {
-    height: 3.2rem;
+  .codebox {
+    height: 3.4rem;
     box-sizing: border-box;
   }
 
@@ -320,49 +322,108 @@
   }
 
   .manual {
-    display: flex;
-    align-items: center;
-  }
-
-  .manual button {
-    flex: none;
-    height: 3.2rem;
+    flex: 1;
   }
 
   .manual {
-    flex: 1;
-  }
-
-  .cells {
-    flex: 1;
     display: flex;
-    gap: 0.4rem;
-    justify-content: center;
-    max-width: 100%;
-    margin: 0 auto;
-    min-width: 0;
   }
 
-  .cells input {
-    width: clamp(1.9rem, 3.6vmin + 0.9rem, 2.6rem);
-    height: 3.2rem;
-    flex: none;
-    text-align: center;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    caret-color: var(--ink);
-    padding: 0;
-    letter-spacing: 0;
+  .codebox {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    max-width: 21rem;
+    height: 3.4rem;
+    margin: 0 auto;
     border: 3px solid var(--ink);
     border-radius: 0.7rem;
-    background: transparent;
-    color: var(--ink);
-    outline: none;
-    transition: background 0.15s;
+    background: rgba(64, 48, 1, 0.18);
+    box-shadow:
+      inset 0 2px 6px rgba(0, 0, 0, 0.3),
+      inset 0 -1px 2px rgba(255, 253, 242, 0.35);
+    overflow: hidden;
+    box-sizing: border-box;
+    cursor: text;
   }
 
-  .cells input.filled {
+  .real {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    font-size: 16px;
+    font-weight: 700;
+    color: transparent;
+    caret-color: transparent;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 0;
+    letter-spacing: 0;
+    opacity: 0.01;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .slots {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    pointer-events: none;
+  }
+
+  .slot {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .slot + .slot {
+    border-left: 1px solid rgba(64, 48, 1, 0.25);
+  }
+
+  .slot.filled {
     background: #fffdf2;
+  }
+
+  .digit {
+    color: var(--ink);
+    font-weight: 800;
+    font-size: 1.5rem;
+    line-height: 1;
+    animation: pop 0.18s ease-out;
+  }
+
+  @keyframes pop {
+    from {
+      transform: scale(1.6);
+      opacity: 0.4;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .blink {
+    width: 2px;
+    height: 1.7rem;
+    border-radius: 1px;
+    background: var(--ink);
+    animation: blink 1s steps(1) infinite;
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  .slot.live {
+    background: rgba(255, 253, 242, 0.25);
   }
 
   @media (prefers-reduced-motion: reduce) {
