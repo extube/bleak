@@ -105,6 +105,61 @@ export const ROOM_FIELD_LIMITS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Handshakes (in-room contact exchange)
+//
+// A handshake ties two room members together. The link creator is `fromUser`,
+// whoever follows the QR link is `toUser`. Each side grades the other:
+//   none | contacts (default) | friend
+// `privateBio` of either profile becomes visible to the peer only once both
+// sides are "friend".
+// ---------------------------------------------------------------------------
+
+export type HandshakeStatus = "none" | "contacts" | "friend";
+
+export interface HandshakeRecord {
+  id: string;
+  fromUser: UserId;
+  toUser: UserId;
+  statusFrom: HandshakeStatus;
+  statusTo: HandshakeStatus;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Contact summary — one entry per handshake, rendered in the space page. */
+export interface HandshakeContact {
+  id: string;
+  peer: { userId: UserId; name: string };
+  /** Viewer's own grade of the peer. */
+  mine: HandshakeStatus;
+  /** Peer's grade of the viewer. */
+  theirs: HandshakeStatus;
+  /** Both sides graded "friend" — private bios unlock. */
+  friends: boolean;
+  createdAt: number;
+}
+
+/** Share-safe profile: privateBio only when the pair is mutual friend. */
+export interface ShareProfile {
+  userId: UserId;
+  name: string;
+  publicBio: string;
+  /** Present only when both sides of the viewer's handshake are "friend". */
+  privateBio?: string;
+  handshake?: {
+    id: string;
+    /** Viewer's own grade of this peer. */
+    mine: HandshakeStatus;
+    /** Peer's grade of the viewer. */
+    theirs: HandshakeStatus;
+    friends: boolean;
+  };
+}
+
+/** Handshake ids are short and opaque. */
+export const HANDSHAKE_ID_LENGTH = 12;
+
+// ---------------------------------------------------------------------------
 // WebSocket envelope
 // ---------------------------------------------------------------------------
 

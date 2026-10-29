@@ -1,6 +1,10 @@
 import type {
+  HandshakeContact,
+  HandshakeRecord,
+  HandshakeStatus,
   IncomeRecord,
   RoomProfile,
+  ShareProfile,
   UserProfile,
 } from "@ble-id/shared-types";
 
@@ -77,4 +81,54 @@ export function createUser(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+// -- Handshakes (in-room contacts) --------------------------------------------
+
+/** Idempotent — the server merges duplicate/reverse pairs into one record. */
+export function createHandshake(
+  roomId: string,
+  fromUser: string,
+  toUser: string,
+): Promise<HandshakeRecord> {
+  return request(`/api/room/${encodeURIComponent(roomId)}/handshakes`, {
+    method: "POST",
+    body: JSON.stringify({ fromUser, toUser }),
+  });
+}
+
+export function listHandshakes(
+  roomId: string,
+  user: string,
+): Promise<HandshakeContact[]> {
+  return request(
+    `/api/room/${encodeURIComponent(roomId)}/handshakes?user=${encodeURIComponent(user)}`,
+  );
+}
+
+export function setHandshakeStatus(
+  roomId: string,
+  handshakeId: string,
+  byUser: string,
+  status: HandshakeStatus,
+): Promise<HandshakeContact> {
+  return request(
+    `/api/room/${encodeURIComponent(roomId)}/handshakes/${encodeURIComponent(handshakeId)}`,
+    { method: "PATCH", body: JSON.stringify({ byUser, status }) },
+  );
+}
+
+/**
+ * Share-safe profile. `privateBio` appears only when the viewer's handshake
+ * with the target is mutual friend.
+ */
+export function getShareProfile(
+  roomId: string,
+  userId: string,
+  viewer?: string,
+): Promise<ShareProfile> {
+  const suffix = viewer ? `?viewer=${encodeURIComponent(viewer)}` : "";
+  return request(
+    `/api/room/${encodeURIComponent(roomId)}/users/${encodeURIComponent(userId)}/share${suffix}`,
+  );
 }

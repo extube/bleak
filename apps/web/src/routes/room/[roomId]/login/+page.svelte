@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
-  import { ApiError, createUser } from "$lib/api";
+  import { ApiError, createHandshake, createUser } from "$lib/api";
   import { saveRoomUser } from "$lib/roomUser";
 
   const roomId = $derived(page.params.roomId ?? "");
@@ -35,6 +35,21 @@
     })
       .then((profile) => {
         saveRoomUser(roomId, profile);
+        // A handshake QR opened while logged out parks its creator here.
+        const pendingRaw = sessionStorage.getItem("ble-id-pending-handshake");
+        if (pendingRaw) {
+          sessionStorage.removeItem("ble-id-pending-handshake");
+          try {
+            const pending = JSON.parse(pendingRaw) as { roomId: string; fromUser: string };
+            if (pending.roomId === roomId && pending.fromUser !== profile.userId) {
+              return createHandshake(roomId, pending.fromUser, profile.userId).then(() =>
+                goto(`/room/${roomId}/user/${pending.fromUser}`, { replaceState: true }),
+              );
+            }
+          } catch {
+            void 0;
+          }
+        }
         return goto(`/room/${roomId}/space`, { replaceState: true });
       })
       .catch((err) => {

@@ -12,9 +12,16 @@
   let manualOpen = $state(false);
 
   const CODE_URL = /\/join\?code=([0-9]{8})/;
+  const HANDSHAKE_URL = /\/room\/([^/\s#?]+)\/handshake\/([A-Za-z0-9_-]{1,32})/;
 
-  /** Accepts a bare 8-digit code or a full /join?code=… URL. */
+  /** Accepts a bare 8-digit code, a /join?code= URL, or a handshake link. */
   function handleCode(text: string): boolean {
+    const handshake = text.match(HANDSHAKE_URL);
+    if (handshake) {
+      stopCamera();
+      location.href = `/room/${handshake[1]}/handshake/${handshake[2]}`;
+      return true;
+    }
     const match = text.match(CODE_URL);
     if (match) {
       stopCamera();
@@ -183,12 +190,7 @@
     <button type="button" class="enter" onclick={() => (manualOpen = true)}>Enter room code</button>
   {:else}
     <form class="manual" onsubmit={enterCode}>
-      <div
-        class="codebox"
-        role="group"
-        aria-label="8-digit room code"
-        onclick={() => codeInput?.focus()}
-      >
+      <label class="codebox">
         <input
           class="real"
           bind:this={codeInput}
@@ -210,7 +212,7 @@
             </span>
           {/each}
         </div>
-      </div>
+      </label>
     </form>
   {/if}
 </footer>
