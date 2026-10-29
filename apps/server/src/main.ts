@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import fastifyStatic from "@fastify/static";
-import type { RoomProfile, UserProfile } from "@ble-id/shared-types";
+import type { HandshakeStatus, RoomProfile, ShareProfile, UserProfile } from "@ble-id/shared-types";
 import { attachWebSocketHub } from "./hub.js";
 import { ClaimStore, type RoomRow, type UserRow, toIncomeRecord } from "./store.js";
 import { ROOM_FIELD_LIMITS, USER_FIELD_LIMITS } from "@ble-id/shared-types";
@@ -259,6 +259,134 @@ export function buildServer(cfg: Config, store: ClaimStore): FastifyInstance {
     if (result === "not-found") return reply.status(404).send({ error: "unknown tempId" });
     if (result === "already-deleted") return reply.status(410).send({ error: "already soft-deleted" });
     return reply.status(204).send();
+  });
+
+  // -- Handshakes (in-room contacts) ------------------------------------------
+
+  const HANDSHAKE_STATUSES: HandshakeStatus[] = ["none", "contacts", "friend"];
+
+  function toShareProfile(row: UserRow, viewerId?: string): ShareProfile {
+    const out: ShareProfile = {
+      userId: row.user_id,
+      name: row.name,
+      publicBio: row.public_bio,
+    };
+    if (!viewerId) return out;
+    const contacts = store.listContacts(row.room_id ?? "", viewerId);
+    const entry = contacts.find((c) => c.peer.userId === row.user_id);
+    if (entry) {
+      out.handshake = {
+        id: entry.id,
+        mine: entry.mine,
+        theirs: entry.theirs,
+        friends: entry.friends,
+      };
+      if (entry.friends) out.privateBio = row.private_bio;
+    }
+    return out;
+  }
+
+  app.post<{
+    Params: { roomId: string };
+    Body: { fromUser?: string; toUser?: string };
+  }>("/api/room/:roomId/handshakes", async (request, reply) => {
+    const roomErr = requireRoom(request.params.roomId);
+    if (roomErr) return reply.status(roomErr.status).send(roomErr.body);
+
+    const { fromUser, toUser } = request.body ?? ({} as never);
+    if (typeof fromUser !== "string" || typeof toUser !== "string") {
+      return reply.status(400).send({ error: "fromUser and toUser required" });
+    }
+    const result = store.createHandshake({
+      roomId: request.params.roomId,
+      fromUser,
+      toUser,
+    });
+    switch (result) {
+      case "same-users":
+        return reply.status(400).send({ error: "fromUser and toUser must differ" });
+      case "user-not-found":
+        return reply.status(404).send({ error: "unknown userId in this room" });
+    }
+    return reply.status(result.created ? 201 : 200).send(result.record);
+  });
+
+  app.get<{
+    Params: { roomId: string };
+    Querystring: { user?: string };
+  }>("/api/room/:roomId/handshakes", async (request, reply) => {
+    const roomErr = requireRoom(request.params.roomId);
+    if (roomErr) return reply.status(roomErr.status).send(roomErr.body);
+    const user = request.query?.user;
+    if (!user) return reply.status(400).send({ error: "user query param required" });
+    const me = store.userById(user);
+    if (!me || me.room_id !== request.params.roomId) {
+      return reply.status(404).send({ error: "unknown userId in this room" });
+    }
+    return reply.send(store.listContacts(request.params.roomId, user));
+  });
+
+  app.patch<{
+    Params: { roomId: string; handshakeId: string };
+    Body: { byUser?: string; status?: string };
+  }>("/api/room/:roomId/handshakes/:handshakeId", async (request, reply) => {
+    const roomErr = requireRoom(request.params.roomId);
+    if (roomErr) return reply.status(roomErr.status).send(roomErr.body);
+
+    const byUser = request.body?.byUser;
+    const status = request.body?.status;
+    if (typeof byUser !== "string") {
+      return reply.status(400).send({ error: "byUser required" });
+    }
+    const allowed = HANDSHAKE_STATUSES.includes(status as HandshakeStatus);
+    if (typeof status !== "string" || !allowed) {
+      return reply.status(400).send({
+        error: `status must be one of: ${HANDSHAKE_STATUSES.join(", ")}`,
+      });
+    }
+
+    const me = store.userById(byUser);
+    if (!me || me.room_id !== request.params.roomId) {
+      return reply.status(404).send({ error: "unknown userId in this room" });
+    }
+
+    const row0 = store.listHandshakesForUser(request.params.roomId, byUser);
+    if (!row0.some((h) => h.id === request.params.handshakeId)) {
+      return reply.status(404).send({ error: "unknown handshake for this user" });
+    }
+
+    const result = store.setHandshakeStatus(
+      request.params.handshakeId,
+      byUser,
+      status as HandshakeStatus,
+    );
+    if (result === "not-found" || result === "not-a-party") {
+      return reply.status(404).send({ error: "unknown handshake for this user" });
+    }
+    const list = store.listContacts(request.params.roomId, byUser);
+    const entry = list.find((c) => c.id === request.params.handshakeId);
+    return reply.send(entry);
+  });
+
+  /**
+   * Share-safe profile: `privateBio` leaks only when the viewer's handshake
+   * with the target is mutual friend. No viewer (or no handshake) = public
+   * fields only.
+   */
+  app.get<{
+    Params: { roomId: string; userId: string };
+    Querystring: { viewer?: string };
+  }>("/api/room/:roomId/users/:userId/share", async (request, reply) => {
+    const roomErr = requireRoom(request.params.roomId);
+    if (roomErr) return reply.status(roomErr.status).send(roomErr.body);
+
+    const row = store.userById(request.params.userId);
+    if (!row || row.room_id !== request.params.roomId) {
+      return reply.status(404).send({ error: "unknown userId in this room" });
+    }
+    const viewer = request.query?.viewer;
+    const viewerRow = viewer ? store.userById(viewer) : undefined;
+    return reply.send(toShareProfile(row, viewerRow && viewerRow.room_id === request.params.roomId ? viewer : undefined));
   });
 
   // -- Migration -------------------------------------------------------------

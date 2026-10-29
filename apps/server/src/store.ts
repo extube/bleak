@@ -1,6 +1,16 @@
 import { createHash, randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { CLAIM_TTL_MS, INCOME_TTL_MS, ROOM_FIELD_LIMITS, TEMP_CODE_LENGTH, USER_FIELD_LIMITS } from "@ble-id/shared-types";
+import {
+  CLAIM_TTL_MS,
+  HANDSHAKE_ID_LENGTH,
+  INCOME_TTL_MS,
+  ROOM_FIELD_LIMITS,
+  TEMP_CODE_LENGTH,
+  USER_FIELD_LIMITS,
+  type HandshakeContact,
+  type HandshakeRecord,
+  type HandshakeStatus,
+} from "@ble-id/shared-types";
 
 export interface IdClaimRow {
   user_id: string;
@@ -35,6 +45,18 @@ export interface IncomeRow {
 export interface RoomRow {
   room_id: string;
   name: string;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+}
+
+export interface HandshakeRow {
+  id: string;
+  room_id: string;
+  from_user: string;
+  to_user: string;
+  status_from: HandshakeStatus;
+  status_to: HandshakeStatus;
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
@@ -102,6 +124,19 @@ export class ClaimStore {
         deleted_at   INTEGER
       );
       CREATE INDEX IF NOT EXISTS idx_users_room ON users(room_id);
+      CREATE TABLE IF NOT EXISTS handshakes (
+        id           TEXT PRIMARY KEY,
+        room_id      TEXT NOT NULL,
+        from_user    TEXT NOT NULL,
+        to_user      TEXT NOT NULL,
+        status_from  TEXT NOT NULL DEFAULT 'contacts',
+        status_to    TEXT NOT NULL DEFAULT 'contacts',
+        created_at   INTEGER NOT NULL,
+        updated_at   INTEGER NOT NULL,
+        deleted_at   INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_handshakes_from ON handshakes(from_user);
+      CREATE INDEX IF NOT EXISTS idx_handshakes_to ON handshakes(to_user);
     `);
     // Legacy DBs created before rooms existed — add the nullable room_id column.
     const usersCols = this.db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
@@ -322,7 +357,138 @@ export class ClaimStore {
     return "deleted";
   }
 
-  // -- Users (room-scoped) ---------------------------------------------------
+  // -- Handshakes (in-room contacts) ----------------------------------------
+
+  private generateHandshakeId(): string {
+    for (;;) {
+      const id = randomBytes(HANDSHAKE_ID_LENGTH * 2).toString("hex").slice(0, HANDSHAKE_ID_LENGTH);
+      if (!this.db.prepare("SELECT 1 FROM handshakes WHERE id = ?").get(id)) return id;
+    }
+  }
+
+  private handshakeById(id: string, includeDeleted = false): HandshakeRow | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM handshakes WHERE id = ?")
+      .get(id) as HandshakeRow | undefined;
+    if (!row) return undefined;
+    if (row.deleted_at !== null && !includeDeleted) return undefined;
+    return row;
+  }
+
+  /**
+   * Link creator + QR follower. Idempotent: the same pair returns the existing
+   * handshake, whichever way round it was made before.
+   */
+  createHandshake(input: { roomId: string; fromUser: string; toUser: string; now?: number }):
+    | { record: HandshakeRecord; created: boolean }
+    | "same-users"
+    | "user-not-found" {
+    if (input.fromUser === input.toUser) return "same-users";
+    const meA = this.userById(input.fromUser);
+    if (!meA || meA.room_id !== input.roomId) return "user-not-found";
+    const meB = this.userById(input.toUser);
+    if (!meB || meB.room_id !== input.roomId) return "user-not-found";
+
+    const now = input.now ?? Date.now();
+    const existing = this.db
+      .prepare(
+        `SELECT * FROM handshakes
+         WHERE room_id = ?
+           AND ((from_user = ? AND to_user = ?) OR (from_user = ? AND to_user = ?))
+           AND deleted_at IS NULL`,
+      )
+      .get(input.roomId, input.fromUser, input.toUser, input.toUser, input.fromUser) as HandshakeRow | undefined;
+    if (existing) return { record: toHandshakeRecord(existing), created: false };
+
+    this.db
+      .prepare(
+        "INSERT INTO handshakes (id, room_id, from_user, to_user, status_from, status_to, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, 'contacts', 'contacts', ?, ?, NULL)",
+      )
+      .run(this.generateHandshakeId(), input.roomId, input.fromUser, input.toUser, now, now);
+    const row = this.db
+      .prepare(
+        "SELECT * FROM handshakes WHERE room_id = ? AND from_user = ? AND to_user = ? AND created_at = ?",
+      )
+      .get(input.roomId, input.fromUser, input.toUser, now) as HandshakeRow | undefined;
+    return { record: toHandshakeRecord(this.handshakeById(row!.id)!), created: true };
+  }
+
+  handshakeForViewer(handshakeId: string, viewerId: string): HandshakeRow | undefined {
+    const row = this.handshakeById(handshakeId);
+    if (!row || (row.from_user !== viewerId && row.to_user !== viewerId)) return undefined;
+    return row;
+  }
+
+  /** The viewer's own grade of the peer — status_from is always the creator's side. */
+  setHandshakeStatus(
+    handshakeId: string,
+    byUserId: string,
+    status: HandshakeStatus,
+    now = Date.now(),
+  ): "updated" | "not-found" | "not-a-party" {
+    const row = this.handshakeById(handshakeId);
+    if (!row) return "not-found";
+    if (row.from_user !== byUserId && row.to_user !== byUserId) return "not-a-party";
+    if (row.from_user === byUserId) {
+      this.db
+        .prepare("UPDATE handshakes SET status_from = ?, updated_at = ? WHERE id = ?")
+        .run(status, now, handshakeId);
+    } else {
+      this.db
+        .prepare("UPDATE handshakes SET status_to = ?, updated_at = ? WHERE id = ?")
+        .run(status, now, handshakeId);
+    }
+    return "updated";
+  }
+
+  /** All live handshakes of a user in one room, sorted newest first. */
+  listHandshakesForUser(roomId: string, userId: string): HandshakeRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM handshakes
+         WHERE room_id = ? AND deleted_at IS NULL AND (from_user = ? OR to_user = ?)
+         ORDER BY created_at DESC`,
+      )
+      .all(roomId, userId, userId) as unknown as HandshakeRow[];
+  }
+
+  /** Contact list payload with the peer's name and friend flag filled in. */
+  listContacts(roomId: string, userId: string): HandshakeContact[] {
+    const out: HandshakeContact[] = [];
+    for (const row of this.listHandshakesForUser(roomId, userId)) {
+      const peerId = row.from_user === userId ? row.to_user : row.from_user;
+      // A soft-deleted peer vanishes from the list; the handshake stays.
+      const peer = this.userById(peerId);
+      if (!peer) continue;
+      const mine = row.from_user === userId ? row.status_from : row.status_to;
+      const theirs = row.from_user === userId ? row.status_to : row.status_from;
+      out.push({
+        id: row.id,
+        peer: { userId: peer.user_id, name: peer.name },
+        mine,
+        theirs,
+        friends: mine === "friend" && theirs === "friend",
+        createdAt: row.created_at,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Private bio stays sealed unless both sides of the viewer's handshake with
+   * the target have graded each other "friend".
+   */
+  isMutualFriend(roomId: string, a: string, b: string): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM handshakes
+         WHERE room_id = ? AND deleted_at IS NULL
+           AND ((from_user = ? AND to_user = ?) OR (from_user = ? AND to_user = ?))
+           AND status_from = 'friend' AND status_to = 'friend' LIMIT 1`,
+      )
+      .get(roomId, a, b, b, a) as HandshakeRow | undefined;
+    return !!row;
+  }
 
   createUser(input: {
     roomId: string;
@@ -489,6 +655,18 @@ export function toIncomeRecord(row: IncomeRow): IncomeRecord {
     createdAt: row.created_at,
     expiresAt: row.expires_at,
     deleted: row.deleted !== 0,
+  };
+}
+
+export function toHandshakeRecord(row: HandshakeRow): HandshakeRecord {
+  return {
+    id: row.id,
+    fromUser: row.from_user,
+    toUser: row.to_user,
+    statusFrom: row.status_from,
+    statusTo: row.status_to,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
