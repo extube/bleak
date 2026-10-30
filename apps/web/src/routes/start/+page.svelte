@@ -9,7 +9,6 @@
 
   let status = $state("Starting camera…");
   let cameraError = $state(false);
-  let manualOpen = $state(false);
 
   const CODE_URL = /\/join\?code=([0-9]{8})/;
   const HANDSHAKE_URL = /\/room\/([^/\s#?]+)\/handshake\/([A-Za-z0-9_-]{1,32})/;
@@ -46,7 +45,6 @@
     const media = navigator.mediaDevices;
     if (!media?.getUserMedia) {
       cameraError = true;
-      manualOpen = true;
       return;
     }
     try {
@@ -62,7 +60,6 @@
       }
     } catch (err) {
       cameraError = true;
-      manualOpen = true;
       void err;
     }
   }
@@ -99,59 +96,10 @@
     });
   }
 
-  function enterCode(event: SubmitEvent) {
-    event.preventDefault();
-    if (/^[0-9]{8}$/.test(code)) {
-      stopCamera();
-      location.href = `/join?code=${code}`;
-    } else {
-      status = "Room code needs exactly 8 digits.";
-    }
-  }
-
-  const DIGITS = 8;
-  let code = $state("");
-  let codeInput: HTMLInputElement | undefined = $state();
-  let dockEl: HTMLElement | undefined = $state();
-
-  function onCodeInput(event: Event) {
-    const input = event.currentTarget as HTMLInputElement;
-    code = input.value.replace(/\D/g, "").slice(0, DIGITS);
-    input.value = code;
-    if (code.length === DIGITS) {
-      stopCamera();
-      setTimeout(() => (location.href = `/join?code=${code}`), 250);
-    }
-  }
-
-  function onCodeKeydown(event: KeyboardEvent) {
-    if (event.key === "Backspace" && !codeInput?.value) {
-      event.preventDefault();
-      code = code.slice(0, -1);
-    }
-  }
-
   onMount(() => {
     void startCamera();
-    codeInput?.focus();
-
-    const vv = window.visualViewport;
-    const syncKeyboard = () => {
-      if (!dockEl || !vv) return;
-      const overlap = window.innerHeight - (vv.height + vv.offsetTop);
-      dockEl.style.bottom = `${Math.max(0, overlap)}px`;
-    };
-    if (vv) {
-      vv.addEventListener("resize", syncKeyboard);
-      vv.addEventListener("scroll", syncKeyboard);
-    }
-
     return () => {
       stopCamera();
-      if (vv) {
-        vv.removeEventListener("resize", syncKeyboard);
-        vv.removeEventListener("scroll", syncKeyboard);
-      }
     };
   });
 </script>
@@ -175,7 +123,7 @@
   <p class="status">{status}</p>
 </div>
 
-<footer class="dock" bind:this={dockEl}>
+<footer class="dock">
   <button
     type="button"
     class="back"
@@ -185,36 +133,6 @@
     }}
     aria-label="Back">←</button
   >
-
-  {#if !manualOpen}
-    <button type="button" class="enter" onclick={() => (manualOpen = true)}>Enter room code</button>
-  {:else}
-    <form class="manual" onsubmit={enterCode}>
-      <label class="codebox">
-        <input
-          class="real"
-          bind:this={codeInput}
-          bind:value={code}
-          oninput={onCodeInput}
-          onkeydown={onCodeKeydown}
-          inputmode="numeric"
-          maxlength="8"
-          autocomplete="one-time-code"
-          spellcheck="false"
-        />
-        <div class="slots" aria-hidden="true">
-          {#each Array(DIGITS) as _, i}
-            <span class="slot" class:filled={code.length > i} class:live={code.length === i}>
-              {#if code[i]}<span class="digit">{code[i]}</span>{/if}
-              {#if code.length === i}
-                <span class="blink"></span>
-              {/if}
-            </span>
-          {/each}
-        </div>
-      </label>
-    </form>
-  {/if}
 </footer>
 
 <style>
@@ -303,129 +221,6 @@
     box-sizing: border-box;
     display: inline-flex;
     align-items: center;
-  }
-
-  .manual input,
-  .codebox {
-    height: 3.4rem;
-    box-sizing: border-box;
-  }
-
-  .enter,
-  .manual {
-    flex: 1;
-  }
-
-  .enter {
-    width: 100%;
-    height: 3.2rem;
-    padding: 0 1rem;
-    box-sizing: border-box;
-  }
-
-  .manual {
-    flex: 1;
-  }
-
-  .manual {
-    display: flex;
-  }
-
-  .codebox {
-    position: relative;
-    flex: 1;
-    min-width: 0;
-    max-width: 21rem;
-    height: 3.4rem;
-    margin: 0 auto;
-    border: 3px solid var(--ink);
-    border-radius: 0.7rem;
-    background: rgba(64, 48, 1, 0.18);
-    box-shadow:
-      inset 0 2px 6px rgba(0, 0, 0, 0.3),
-      inset 0 -1px 2px rgba(255, 253, 242, 0.35);
-    overflow: hidden;
-    box-sizing: border-box;
-    cursor: text;
-  }
-
-  .real {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    font-size: 16px;
-    font-weight: 700;
-    color: transparent;
-    caret-color: transparent;
-    background: transparent;
-    border: none;
-    outline: none;
-    padding: 0;
-    letter-spacing: 0;
-    opacity: 0.01;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .slots {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    pointer-events: none;
-  }
-
-  .slot {
-    position: relative;
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .slot + .slot {
-    border-left: 1px solid rgba(64, 48, 1, 0.25);
-  }
-
-  .slot.filled {
-    background: #fffdf2;
-  }
-
-  .digit {
-    color: var(--ink);
-    font-weight: 800;
-    font-size: 1.5rem;
-    line-height: 1;
-    animation: pop 0.18s ease-out;
-  }
-
-  @keyframes pop {
-    from {
-      transform: scale(1.6);
-      opacity: 0.4;
-    }
-    to {
-      transform: scale(1);
-      opacity: 1;
-    }
-  }
-
-  .blink {
-    width: 2px;
-    height: 1.7rem;
-    border-radius: 1px;
-    background: var(--ink);
-    animation: blink 1s steps(1) infinite;
-  }
-
-  @keyframes blink {
-    50% {
-      opacity: 0;
-    }
-  }
-
-  .slot.live {
-    background: rgba(255, 253, 242, 0.25);
   }
 
   @media (prefers-reduced-motion: reduce) {
