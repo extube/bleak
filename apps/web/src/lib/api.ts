@@ -83,6 +83,26 @@ export function createUser(
   });
 }
 
+export function getUserProfile(
+  roomId: string,
+  userId: string,
+): Promise<UserProfile> {
+  return request(
+    `/api/room/${encodeURIComponent(roomId)}/users/${encodeURIComponent(userId)}`,
+  );
+}
+
+export function updateUser(
+  roomId: string,
+  userId: string,
+  body: { name?: string; publicBio?: string; privateBio?: string },
+): Promise<UserProfile> {
+  return request(
+    `/api/room/${encodeURIComponent(roomId)}/users/${encodeURIComponent(userId)}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+}
+
 // -- Handshakes (in-room contacts) --------------------------------------------
 
 /** Idempotent — the server merges duplicate/reverse pairs into one record. */
