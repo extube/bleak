@@ -14,6 +14,20 @@
   let submitError = $state("");
   let busy = $state(false);
 
+  let formEl: HTMLFormElement | undefined = $state();
+  let nameEl: HTMLTextAreaElement | undefined = $state();
+  let publicEl: HTMLTextAreaElement | undefined = $state();
+  let privateEl: HTMLTextAreaElement | undefined = $state();
+
+  /** Enter moves to the next field (Shift+Enter makes a newline); last field submits. */
+  function onFieldKeydown(event: KeyboardEvent, next: "public" | "private" | "submit") {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    if (next === "public") publicEl?.focus();
+    else if (next === "private") privateEl?.focus();
+    else formEl?.requestSubmit();
+  }
+
   function generateUserId(): string {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ123456789";
     const bytes = crypto.getRandomValues(new Uint8Array(6));
@@ -85,24 +99,28 @@
   </header>
 
   <main>
-    <form id="login-form" onsubmit={submit}>
+    <form id="login-form" onsubmit={submit} bind:this={formEl}>
       <fieldset class="bio name">
         <legend>display name</legend>
         <textarea
+          bind:this={nameEl}
           bind:value={name}
           maxlength="64"
           rows="1"
           placeholder="your display name"
+          onkeydown={(e) => onFieldKeydown(e, "public")}
         ></textarea>
       </fieldset>
 
       <fieldset class="bio public">
         <legend>public bio</legend>
         <textarea
+          bind:this={publicEl}
           bind:value={publicBio}
           maxlength={BIO_MAX}
           rows="3"
           placeholder="what others may know about you, e.g. radio hobbyist, likes cats"
+          onkeydown={(e) => onFieldKeydown(e, "private")}
         ></textarea>
         <span class="counter">{publicBio.length}/{BIO_MAX}</span>
       </fieldset>
@@ -120,10 +138,12 @@
           </svg>
         </legend>
         <textarea
+          bind:this={privateEl}
           bind:value={privateBio}
           maxlength={BIO_MAX}
-          rows="5"
+          rows="3"
           placeholder="info for selected contacts and friends you choose"
+          onkeydown={(e) => onFieldKeydown(e, "submit")}
         ></textarea>
         <span class="counter">{privateBio.length}/{BIO_MAX}</span>
       </fieldset>
@@ -203,11 +223,10 @@
     border: none;
     background: transparent;
     color: inherit;
-    resize: vertical;
+    resize: none;
     width: 100%;
     box-sizing: border-box;
     outline: none;
-    min-height: 3.5rem;
     font-size: 1rem;
   }
 
@@ -217,7 +236,6 @@
 
   fieldset.name textarea {
     font-size: 1.15rem;
-    min-height: 2.2rem;
     resize: none;
     overflow: hidden;
   }
@@ -264,10 +282,6 @@
 
   .lock path {
     stroke: currentColor;
-  }
-
-  fieldset.private textarea {
-    min-height: 8rem;
   }
 
   fieldset.private textarea::placeholder {

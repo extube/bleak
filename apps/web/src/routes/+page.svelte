@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { goto } from "$app/navigation";
 
   type Burst = {
@@ -31,9 +32,47 @@
   });
 
   const start = () => goto("/start");
+
+  /** Most recent saved room session in this browser, if any. */
+  let activeRoom = $state<string | null>(null);
+
+  onMount(() => {
+    const keys = Object.keys(localStorage).filter((k) =>
+      k.startsWith("ble-id-room-user:"),
+    );
+    if (keys.length > 0) {
+      for (const key of keys) {
+        try {
+          const profile = JSON.parse(
+            localStorage.getItem(key) ?? "null",
+          ) as Record<string, unknown> | null;
+          if (profile?.userId) {
+            activeRoom = key.slice("ble-id-room-user:".length);
+          }
+        } catch {
+          void 0;
+        }
+      }
+    }
+  });
 </script>
 
 <div class="stage" aria-hidden="true">
+  {#if activeRoom}
+    <button
+      type="button"
+      class="back-to-room"
+      aria-label="back to room space"
+      title="back to your room"
+      onclick={() => goto(`/room/${activeRoom}/space`)}
+    >
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 10.5L12 4l8 6.5" />
+        <path d="M6.5 9.5V20h11V9.5" />
+        <path d="M10 20v-5.5h4V20" />
+      </svg>
+    </button>
+  {/if}
   <svg class="curve curve-a" viewBox="0 0 400 400" fill="none">
     <path
       d="M-40 380 C 120 340, 200 220, 180 60 S 320 -80, 420 -20"
@@ -112,6 +151,29 @@
 </main>
 
 <style>
+  .back-to-room {
+    position: fixed;
+    top: calc(1rem + env(safe-area-inset-top));
+    right: calc(1rem + env(safe-area-inset-right));
+    z-index: 10;
+    width: 3.2rem;
+    height: 3.2rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: none;
+    background: var(--ink);
+    color: var(--yellow);
+    box-shadow: 0 3px 10px rgba(13, 13, 13, 0.35);
+    pointer-events: auto;
+  }
+
+  .back-to-room:active {
+    transform: scale(0.93);
+  }
+
   .stage {
     position: fixed;
     inset: 0;
