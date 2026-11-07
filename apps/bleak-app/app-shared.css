@@ -1,4 +1,4 @@
-/* Shared with apps/web/src/app.css in spirit — keep the two palettes identical.
+/* Shared with apps/bleak-web/src/app.css in spirit — keep the two palettes identical.
    Duplication is deliberate: web ships a PWA bundle, native a Capacitor one. */
 :root {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;

@@ -19,9 +19,9 @@ Monorepo (npm workspaces + turbo):
 | `packages/shared-types` | Protocol types, BLE UUIDs, field limits — single source of truth |
 | `packages/ble-plugin` | Capacitor BLE-peripheral plugin (Kotlin/Swift scaffolded, TODOs in its README) |
 | `packages/mock-advertiser` | Desktop-Linux CLI mock BLE peripheral (BlueZ D-Bus, tsx-run, no build); dry-run fallback |
-| `apps/server` | Fastify + ws + SQLite (built-in `node:sqlite`) relay; rooms/users REST API on `/api/room/...` |
-| `apps/web` | SvelteKit SPA (`ssr = false`, adapter-static) — claims IDs via relay |
-| `apps/native` | Capacitor shell reusing the same Svelte app + BLE plugin |
+| `apps/bleak-node` | Fastify + ws + SQLite (built-in `node:sqlite`) relay; rooms/users REST API on `/api/room/...` |
+| `apps/bleak-web` | SvelteKit SPA (`ssr = false`, adapter-static) — claims IDs via relay |
+| `apps/bleak-app` | Capacitor shell reusing the same Svelte app + BLE plugin |
 
 - Node ≥ 24 (built-in `node:sqlite`, no native build toolchain); npm 11
   (`packageManager` pinned).
@@ -38,21 +38,24 @@ npm test             # node:test + tsx (server and mock-advertiser)
 npm run dev          # server :8787 + web :5173 + native :5174, parallel
 ```
 
-- One workspace: `npm test -w @ble-id/server`. One file, from `apps/server`:
+- One workspace: `npm test -w bleak-node`. One file, from `apps/bleak-node`:
   `node --import tsx --test test/store.test.ts`.
 - Server tests use fastify `inject()` (no socket, port 0) and a throwaway
   SQLite file per test in a tmp dir — no services or fixtures required.
 - Web "lint" is `prettier --check .`; web typecheck is `svelte-check`.
 
-### Web ↔ relay in dev (gotcha)
+### Web ↔ relay in dev (proxy)
 
-The web client connects to `ws(s)://<location.host>/ws`, and the Vite dev
-server has **no proxy** — `npm run dev:web` alone never reaches the relay.
-To exercise the full flow, serve the built SPA from the relay:
+The web client hits the relay via same-origin `/api` (fetch) and `/ws`
+(WebSocket). The Vite dev server does **not** proxy those by default in this
+repo's history, but `apps/bleak-web/vite.config.ts` now defines a dev proxy
+(target `http://localhost:4000`, override with `RELAY_ORIGIN=http://...`),
+so `npm run dev:web` alone reaches the relay. When serving the built SPA
+from the relay instead, no proxy is involved:
 
 ```bash
-npm run build -w @ble-id/web
-WEB_DIST_DIR=../web/build npm run dev:server   # SPA + WS on :8787
+npm run build -w bleak-web
+WEB_DIST_DIR=../bleak-web/build npm run dev:server   # SPA + WS on :8787
 ```
 
 `POST /api/exchange-code` is the dev helper that mints a live code.
@@ -103,7 +106,7 @@ cloning: `git config core.hooksPath .githooks`; installs `pre-commit`,
 - **Length limits** live in `packages/shared-types` (`USER_FIELD_LIMITS`,
   `ROOM_FIELD_LIMITS`); the store clamps again. Change them in one place only.
 
-## Native app (`apps/native`)
+## Native app (`apps/bleak-app`)
 
 One-time per clone (needs real Xcode / Android SDKs): `npx cap add ios` or
 `npx cap add android`, then `npm run cap:sync`. Dev loop: `npm run dev`
@@ -115,7 +118,7 @@ One-time per clone (needs real Xcode / Android SDKs): `npx cap add ios` or
 
 - **Git "dubious ownership"** (repo touched by another user):
   `git config --global --add safe.directory <repo-path>`.
-- **SQLite** `apps/server/claims.db` is machine-local and gitignored — never
+- **SQLite** `apps/bleak-node/claims.db` is machine-local and gitignored — never
   commit it; relocate via `SQLITE_PATH`.
 - **BLE per platform**: web Bluetooth (central role) works on Android/desktop
   Chrome; it is unavailable on iOS, where the Capacitor plugin is the only

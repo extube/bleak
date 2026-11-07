@@ -47,4 +47,4 @@ raw tokens — SHA-256 only.
 
 ## Serving the web client from the same server
 
-Set `WEB_DIST_DIR=../web/build` (or `../web/.svelte-kit/output` after `svelte-kit build`) and the Fastify instance will serve the SPA with index.html fallback. If unset, purely socket server.
+Set `WEB_DIST_DIR=../bleak-web/build` (or `../bleak-web/.svelte-kit/output` after `svelte-kit build`) and the Fastify instance will serve the SPA with index.html fallback. If unset, purely socket server.

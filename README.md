@@ -10,9 +10,9 @@ Exchange short device/user IDs between nearby users:
 
 ```
 apps/
-  server/     Fastify + ws + better-sqlite3 relay
-  web/        SvelteKit PWA (web client)
-  native/     Capacitor shell (same Svelte UI + native plugins)
+  bleak-node/     Fastify + ws + better-sqlite3 relay
+  bleak-web/      SvelteKit PWA (web client)
+  bleak-app/      Capacitor shell (same Svelte UI + native plugins)
 packages/
   shared-types/   protocol types shared across every app
   ble-plugin/     Capacitor plugin: BLE peripheral/advertiser (Android + iOS)
@@ -21,7 +21,7 @@ packages/
 ## Requirements
 
 - Node 20+
-- iOS/Android builds for `apps/native`: Xcode 15+ / Android Studio + `npx cap add ios android` once.
+- iOS/Android builds for `apps/bleak-app`: Xcode 15+ / Android Studio + `npx cap add ios android` once.
 
 ## Quick start (dev)
 

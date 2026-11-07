@@ -1,5 +1,5 @@
 {
-  "name": "@ble-id/native",
+  "name": "bleak-app",
   "version": "0.1.0",
   "private": true,
   "description": "Capacitor wrapper — BLE listen + advertise (serverless BLE path)",
