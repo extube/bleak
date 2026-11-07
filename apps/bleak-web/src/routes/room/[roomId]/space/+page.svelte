@@ -95,7 +95,7 @@
       <button type="button" class="dots" aria-label="settings" title="settings">⋮</button>
     </div>
     <div class="head-right">
-      <a class="icon-btn" href="/start" aria-label="scan" title="scan a qr code">
+      <a class="icon-btn" href={`/room/${roomId}/handshake/scan`} aria-label="scan" title="scan a handshake qr">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="2.5" y="7" width="19" height="13" rx="2.5" />
           <path d="M8.5 7l1.6-2.4h3.8L15.5 7" />

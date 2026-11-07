@@ -9,8 +9,8 @@
   ],
   "scripts": {
     "dev": "turbo run dev --parallel",
-    "dev:server": "turbo run dev --filter=@ble-id/server",
-    "dev:web": "turbo run dev --filter=@ble-id/web",
+    "dev:server": "turbo run dev --filter=bleak-node",
+    "dev:web": "turbo run dev --filter=bleak-web",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",

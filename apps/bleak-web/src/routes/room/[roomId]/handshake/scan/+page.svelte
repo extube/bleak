@@ -2,6 +2,10 @@
   import { onMount } from "svelte";
   import jsQR from "jsqr";
 
+  // Fullscreen scanner for handshake exchanges (contacts), launched from the
+  // space page. Unlike /start it accepts ONLY handshake links — income / join
+  // codes are another flow (the /start path) and are rejected with a hint.
+
   let video: HTMLVideoElement | undefined = $state();
   let canvas: HTMLCanvasElement | undefined = $state();
   let stream: MediaStream | null = null;
@@ -10,30 +14,8 @@
   let status = $state("Starting camera…");
   let cameraError = $state(false);
 
-  const CODE_URL = /\/join\?code=([0-9]{8})/;
   const HANDSHAKE_URL = /\/room\/([^/\s#?]+)\/handshake\/([A-Za-z0-9_-]{1,32})/;
-
-  /** Accepts a bare 8-digit code, a /join?code= URL, or a handshake link. */
-  function handleCode(text: string): boolean {
-    const handshake = text.match(HANDSHAKE_URL);
-    if (handshake) {
-      stopCamera();
-      location.href = `/room/${handshake[1]}/handshake/${handshake[2]}`;
-      return true;
-    }
-    const match = text.match(CODE_URL);
-    if (match) {
-      stopCamera();
-      location.href = `/join?code=${match[1]}`;
-      return true;
-    }
-    if (/^[0-9]{8}$/.test(text)) {
-      stopCamera();
-      location.href = `/join?code=${text}`;
-      return true;
-    }
-    return false;
-  }
+  const CODE_URL = /\/join\?code=([0-9]{8})/;
 
   function stopCamera() {
     cancelAnimationFrame(rafId);
@@ -55,7 +37,7 @@
       if (video) {
         video.srcObject = stream;
         await video.play();
-        status = "Point at a QR code…";
+        status = "Point at a handshake QR…";
         scanLoop();
       }
     } catch (err) {
@@ -86,11 +68,21 @@
       const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const found = jsQR(image.data, canvas.width, canvas.height);
       if (found?.data) {
-        if (handleCode(found.data)) return;
-        warnedTooFast = Date.now();
-        status = `QR read, but not an invite — ${found.data.slice(0, 40)}`;
+        const handshake = found.data.match(HANDSHAKE_URL);
+        if (handshake) {
+          stopCamera();
+          location.href = `/room/${handshake[1]}/handshake/${handshake[2]}`;
+          return;
+        }
+        if (CODE_URL.test(found.data)) {
+          warnedTooFast = Date.now();
+          status = "That's a join code — open it from the start page.";
+        } else {
+          warnedTooFast = Date.now();
+          status = `Not a handshake QR — ${found.data.slice(0, 40)}`;
+        }
       } else {
-        if (Date.now() - warnedTooFast > 3000) status = "Point at a QR code…";
+        if (Date.now() - warnedTooFast > 3000) status = "Point at a handshake QR…";
       }
       scanLoop();
     });
@@ -98,9 +90,7 @@
 
   onMount(() => {
     void startCamera();
-    return () => {
-      stopCamera();
-    };
+    return stopCamera;
   });
 </script>
 
@@ -133,6 +123,8 @@
     }}
     aria-label="Back">←</button
   >
+
+  <span class="dock-hint">scan the other person's handshake qr</span>
 </footer>
 
 <style>
@@ -221,6 +213,16 @@
     box-sizing: border-box;
     display: inline-flex;
     align-items: center;
+  }
+
+  .dock-hint {
+    flex: 1;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0 0.5rem;
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -3,7 +3,7 @@
  * Generates placeholder PNG icons for the PWA manifest (192/512), so the
  * starter runs cleanly without binary assets in git.
  *
- * Usage: node scripts/generate-icons.mjs   (apps/web/static/*.png)
+ * Usage: node scripts/generate-icons.mjs   (apps/bleak-web/static/*.png)
  */
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
